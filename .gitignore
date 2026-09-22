@@ -1,0 +1,10 @@
+*.rsuser
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+*.env
+
+x64
+*/x64
+.vs
