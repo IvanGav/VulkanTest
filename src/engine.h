@@ -23,9 +23,6 @@
 #define STB_IMAGE_IMPLEMENTATION
 #include <stb_image.h>
 
-//#define VOLK_IMPLEMENTATION
-//#include <volk/volk.h>
-
 #define VMA_IMPLEMENTATION
 #include <vma/vk_mem_alloc.h>
 
@@ -40,6 +37,12 @@
 
 namespace engine {
 
+// Ensure that the result is `VK_SUCCESS`; raise an unrecoverable error when it's not
+void success(VkResult result, std::string errorMessage = "No Message Provided") {
+    if (result == VK_SUCCESS) return;
+    err(errorMessage, string_VkResult(result));
+}
+
 struct Vertex {
     glm::vec3 pos;
     glm::vec2 uv;
@@ -53,19 +56,19 @@ struct BufferRef {
     VkDeviceAddress deviceAddress;
 };
 
-struct TextureRef {
+struct ImageRef {
     VmaAllocation allocation;
     VkImage image;
     VkImageView view;
 };
 
 struct ShaderUniformData {
-    glm::mat4 model;
-    glm::mat4 view;
     glm::mat4 proj;
+    glm::mat4 view;
+    glm::mat4 model;
 };
 
-const std::vector<Vertex> vertices = {
+std::vector<Vertex> vertices = {
     {{-0.5f, -0.5f, 0.0f}, {0.0f, 0.0f}},
     {{0.5f, -0.5f, 0.0f}, {1.0f, 0.0f}},
     {{0.5f, 0.5f, 0.0f}, {1.0f, 1.0f}},
@@ -77,10 +80,14 @@ const std::vector<Vertex> vertices = {
     {{-0.5f, 0.5f, -0.5f}, {0.0f, 1.0f}}
 };
 
-const std::vector<u16> indices = {
+std::vector<u16> indices = {
     0, 1, 2, 2, 3, 0,
     4, 5, 6, 6, 7, 4
 };
+
+/* global settings */
+std::vector<const char*> deviceExtensions = { VK_KHR_SWAPCHAIN_EXTENSION_NAME, VK_KHR_UNIFIED_IMAGE_LAYOUTS_EXTENSION_NAME };
+std::vector<const char*> validationLayers = { "VK_LAYER_KHRONOS_validation" };
 
 struct Engine {
 public:
@@ -120,8 +127,8 @@ public:
     Vec<VkCommandBuffer> commandBuffers;
     Vec<VkFence> fences;
     Vec<VkSemaphore> imageAcquiredSemaphores;
-    VkCommandPool commandPool; // TODO: Create one per thread
-    Vec<TextureRef> textures;
+    VkCommandPool commandPool; // TODO Create one per thread
+    Vec<ImageRef> textures;
     Vec<VkDescriptorImageInfo> textureDescriptors;
     VkSampler sampler;
     VkDescriptorSetLayout texturesDescriptorSetLayout;
@@ -138,10 +145,10 @@ public:
         this->framesInFlight = framesInFlight;
         u32 bufSize = vertices.size() * sizeof(Vertex) + indices.size() * sizeof(u16);
         initWindow();
-        createInstance(Vec<const char*>::with(&global_arena, "VK_LAYER_KHRONOS_validation").full_slice());
+        createInstance();
         createPhysicalDevice();
         createSurface();
-        createDevice(physicalDevice, Vec<const char*>::with(&global_arena, VK_KHR_SWAPCHAIN_EXTENSION_NAME, VK_KHR_UNIFIED_IMAGE_LAYOUTS_EXTENSION_NAME).full_slice()); // TODO just make a global array of extensions to use
+        createDevice(physicalDevice); // TODO just make a global array of extensions to use
         initVma();
         createSwapchain();
         createDepthImage();
@@ -163,6 +170,7 @@ public:
         memcpy(((char*)vertexBuffer.allocationInfo.pMappedData) + vertices.size() * sizeof(Vertex), indices.data(), indices.size() * sizeof(u16));
     }
     void cleanup() {
+        // TODO
         vkDestroyInstance(instance, nullptr);
         glfwDestroyWindow(window);
         glfwTerminate();
@@ -178,10 +186,13 @@ private:
     /* Run */
 
     void drawFrame() {
-        VkResult r1 = vkWaitForFences(device, 1, &fences[frameIndex], VK_TRUE, UINT64_MAX);
-        VkResult r2 = vkResetFences(device, 1, &fences[frameIndex]);
-        VkResult r3 = vkAcquireNextImageKHR(device, swapchain, UINT64_MAX, imageAcquiredSemaphores[frameIndex], VK_NULL_HANDLE, &imageIndex);
-        if (r3 == VK_ERROR_OUT_OF_DATE_KHR) { framebufferResized = true; }
+        success(vkWaitForFences(device, 1, &fences[frameIndex], VK_TRUE, UINT64_MAX));
+        {
+            VkResult result = vkAcquireNextImageKHR(device, swapchain, UINT64_MAX, imageAcquiredSemaphores[frameIndex], VK_NULL_HANDLE, &imageIndex);
+            if (result == VK_ERROR_OUT_OF_DATE_KHR) { recreateSwapchain(); return; }
+            else if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR) { err("Could not acquire swapchain image", string_VkResult(result)); }
+        }
+        success(vkResetFences(device, 1, &fences[frameIndex]));
 
         {
             static auto startTime = std::chrono::high_resolution_clock::now();
@@ -190,9 +201,9 @@ private:
             float time = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - startTime).count();
 
             ShaderUniformData shaderUniform{
-                .model = glm::rotate(glm::mat4(1.0f), time * glm::radians(90.0f), glm::normalize(glm::vec3(0.0f, 0.5f, 1.0f))),
-                .view = glm::lookAt(glm::vec3(2.0f, 2.0f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f)),
                 .proj = glm::perspective(glm::radians(45.0f), swapchainExtent.width / (f32)swapchainExtent.height, 0.1f, 10.0f),
+                .view = glm::lookAt(glm::vec3(2.0f, 2.0f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f)),
+                .model = glm::rotate(glm::mat4(1.0f), time * glm::radians(90.0f), glm::normalize(glm::vec3(0.0f, 0.5f, 1.0f))),
             };
             shaderUniform.proj[1][1] *= -1;
             memcpy(shaderBuffers[frameIndex].allocationInfo.pMappedData, &shaderUniform, sizeof(ShaderUniformData));
@@ -345,7 +356,8 @@ private:
         };
         {
             VkResult result = vkQueuePresentKHR(presentQueue, &presentInfo);
-            if (result == VK_ERROR_OUT_OF_DATE_KHR) { framebufferResized = true; }
+            if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR) { framebufferResized = true; }
+            else if (result != VK_SUCCESS) { err("Could not present swap chain image", string_VkResult(result)); }
         }
 
         if (framebufferResized) {
@@ -368,7 +380,7 @@ private:
     }
 
     // create `this->instance`
-    void createInstance(Slice<const char*> validationLayers) {
+    void createInstance() {
         VkApplicationInfo appInfo{
             .sType = VK_STRUCTURE_TYPE_APPLICATION_INFO,
             .pApplicationName = "How to Vulkan",
@@ -382,8 +394,8 @@ private:
         VkInstanceCreateInfo instanceCI{
             .sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO,
             .pApplicationInfo = &appInfo,
-            .enabledLayerCount = validationLayers.size,
-            .ppEnabledLayerNames = validationLayers.data,
+            .enabledLayerCount = (u32)validationLayers.size(),
+            .ppEnabledLayerNames = validationLayers.data(),
             .enabledExtensionCount = instanceExtensionsCount,
             .ppEnabledExtensionNames = instanceExtensions,
         };
@@ -408,18 +420,12 @@ private:
 
     // create `this->surface` and `this->surfaceCapabilities`
     void createSurface() {
-        {
-            VkResult result = glfwCreateWindowSurface(instance, window, nullptr, &surface);
-            if (result != VK_SUCCESS) { err("Could not create window surface", string_VkResult(result)); }
-        }
-        {
-            VkResult result = vkGetPhysicalDeviceSurfaceCapabilitiesKHR(physicalDevice, surface, &surfaceCapabilities);
-            if (result != VK_SUCCESS) { err("Could not get surface capabilities", string_VkResult(result)); }
-        }
+        success(glfwCreateWindowSurface(instance, window, nullptr, &surface), "Could not create window surface");
+        success(vkGetPhysicalDeviceSurfaceCapabilitiesKHR(physicalDevice, surface, &surfaceCapabilities), "Could not get surface capabilities");
     }
 
     // create `this->device`
-    void createDevice(VkPhysicalDevice physicalDevice, Slice<const char*> deviceExtensions) {
+    void createDevice(VkPhysicalDevice physicalDevice) {
         assert(physicalDevice != VK_NULL_HANDLE);
         u32 queueFamilyCount;
         vkGetPhysicalDeviceQueueFamilyProperties(physicalDevice, &queueFamilyCount, nullptr);
@@ -480,8 +486,8 @@ private:
             .pNext = &unifiedImageLayousFeatures,
             .queueCreateInfoCount = 1,
             .pQueueCreateInfos = &queueCI,
-            .enabledExtensionCount = deviceExtensions.size,
-            .ppEnabledExtensionNames = deviceExtensions.data,
+            .enabledExtensionCount = (u32)deviceExtensions.size(),
+            .ppEnabledExtensionNames = deviceExtensions.data(),
             .pEnabledFeatures = &enabledVk10Features
         };
         VkResult result = vkCreateDevice(physicalDevice, &deviceCI, nullptr, &device);
@@ -570,7 +576,7 @@ private:
             .sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
             .imageType = VK_IMAGE_TYPE_2D,
             .format = depthFormat,
-            .extent = {.width = swapchainExtent.width, .height = swapchainExtent.width, .depth = 1 },
+            .extent = {.width = swapchainExtent.width, .height = swapchainExtent.height, .depth = 1 },
             .mipLevels = 1,
             .arrayLayers = 1,
             .samples = VK_SAMPLE_COUNT_1_BIT,
@@ -583,10 +589,7 @@ private:
             .flags = VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT,
             .usage = VMA_MEMORY_USAGE_AUTO
         };
-        {
-            VkResult result = vmaCreateImage(allocator, &depthImageCI, &allocCI, &depthImage, &depthImageAllocation, nullptr);
-            if (result != VK_SUCCESS) { err("Could not create image (depth buffer)", string_VkResult(result)); }
-        }
+        success(vmaCreateImage(allocator, &depthImageCI, &allocCI, &depthImage, &depthImageAllocation, nullptr), "Could not create image (depth buffer)");
 
         VkImageViewCreateInfo depthViewCI{
             .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
@@ -595,10 +598,7 @@ private:
             .format = depthFormat,
             .subresourceRange = {.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT, .levelCount = 1, .layerCount = 1 }
         };
-        {
-            VkResult result = vkCreateImageView(device, &depthViewCI, nullptr, &depthImageView);
-            if (result != VK_SUCCESS) { err("Could not create image view (depth buffer)", string_VkResult(result)); }
-        }
+        success(vkCreateImageView(device, &depthViewCI, nullptr, &depthImageView), "Could not create image view (depth buffer)");
     }
 
     // create `this->vertexBuffer`, `this->shaderBuffers`
@@ -942,17 +942,17 @@ private:
         }
     }
 
-    TextureRef loadImage(const char* path) {
+    ImageRef loadImage(const char* path) {
         i32 texWidth, texHeight, texChannels;
         stbi_uc* pixels = stbi_load(path, &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
 
         if (stbi_failure_reason()) {
-            err("stbi error: ", stbi_failure_reason());
+            err("stbi", stbi_failure_reason());
         }
 
         VkDeviceSize imageSize = (u64)texWidth * (u64)texHeight * 4; // 4 bytes per pixel in VK_FORMAT_R8G8B8A8_SRGB
 
-        TextureRef tex;
+        ImageRef tex;
         createTextureImage(tex, texWidth, texHeight, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_HOST_TRANSFER_BIT);
 
         VkMemoryToImageCopy memImgCopy{
@@ -1011,7 +1011,7 @@ private:
         return tex;
     }
 
-    void createTextureImage(TextureRef& image, u32 width, u32 height, VkFormat format = VK_FORMAT_R8G8B8A8_SRGB, VkImageTiling tiling = VK_IMAGE_TILING_OPTIMAL, VkImageUsageFlags usage = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT) {
+    void createTextureImage(ImageRef& image, u32 width, u32 height, VkFormat format = VK_FORMAT_R8G8B8A8_SRGB, VkImageTiling tiling = VK_IMAGE_TILING_OPTIMAL, VkImageUsageFlags usage = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT) {
         u32 mipLevels = 1;
         VkImageCreateInfo imageCI{
             .sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
@@ -1060,16 +1060,18 @@ private:
 
         return buffer;
     }
+
+    bool isWindowMinimized() {
+        i32 width = 0, height = 0;
+        glfwGetFramebufferSize(window, &width, &height);
+        return width == 0 || height == 0;
+    }
     
     void recreateSwapchain() {
-        {
-            VkResult result = vkDeviceWaitIdle(device);
-            if (result != VK_SUCCESS) { err("Could not wait for device idle", string_VkResult(result)); }
-        }
-        {
-            VkResult result = vkGetPhysicalDeviceSurfaceCapabilitiesKHR(physicalDevice, surface, &surfaceCapabilities);
-            if (result != VK_SUCCESS) { err("Could not get surface capabilities", string_VkResult(result)); }
-        }
+        while(isWindowMinimized()) { glfwWaitEvents(); }
+        success(vkDeviceWaitIdle(device));
+        success(vkGetPhysicalDeviceSurfaceCapabilitiesKHR(physicalDevice, surface, &surfaceCapabilities), "Could not get surface capabilities");
+        // `swapchainImages` are owned by `swapchain`, not `Engine`, so don't destroy them here
         for (u32 i = 0; i < swapchainImageViews.size; i++) {
             vkDestroyImageView(device, swapchainImageViews[i], nullptr);
         }
@@ -1079,15 +1081,13 @@ private:
         createSwapchain();
         createDepthImage();
         vkDestroySwapchainKHR(device, oldSwapchain, nullptr);
-
         for (VkSemaphore& semaphore : renderCompleteSemaphores) {
             vkDestroySemaphore(device, semaphore, nullptr);
         }
         renderCompleteSemaphores.resize(swapchainImages.size);
         VkSemaphoreCreateInfo semaphoreCI{ .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO };
         for (VkSemaphore& semaphore : renderCompleteSemaphores) {
-            VkResult result = vkCreateSemaphore(device, &semaphoreCI, nullptr, &semaphore);
-            if (result != VK_SUCCESS) { err("Could not create semaphore", string_VkResult(result)); }
+            success(vkCreateSemaphore(device, &semaphoreCI, nullptr, &semaphore));
         }
     }
 };

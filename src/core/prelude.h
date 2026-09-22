@@ -78,7 +78,6 @@ void err(Args&&... strs) {
     std::cout << "ERROR: ";
     ((std::cout << std::forward<Args>(strs) << " "), ...);
     std::cout << std::endl;
-    while(true) { std::this_thread::sleep_for(std::chrono::milliseconds(1000)); }
     exit(1);
 }
 
