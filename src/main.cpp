@@ -4,7 +4,7 @@
 
 int main() {
 	engine::Engine e = {};
-	e.init(2);
+	e.init();
 	e.run();
 	e.cleanup();
 }

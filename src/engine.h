@@ -85,70 +85,182 @@ std::vector<u16> indices = {
     4, 5, 6, 6, 7, 4
 };
 
-/* global settings */
+/* global settings - set up before calling `init` */
 std::vector<const char*> deviceExtensions = { VK_KHR_SWAPCHAIN_EXTENSION_NAME, VK_KHR_UNIFIED_IMAGE_LAYOUTS_EXTENSION_NAME };
 std::vector<const char*> validationLayers = { "VK_LAYER_KHRONOS_validation" };
+u32 framesInFlight = 2;
+
+/* global - updated in `draw` */
+f32 time = 0.0; // seconds since launch
+u32 frames = 0; // frames since launch
+u32 windowWidth = 0;
+u32 windowHeight = 0;
+
+/* general */
+u32 frameIndex = 0;
+
+/* glfw */
+GLFWwindow* window = nullptr;
+
+/* vulkan */
+VkInstance instance = VK_NULL_HANDLE;
+VkSurfaceKHR surface = VK_NULL_HANDLE;
+VkSurfaceCapabilitiesKHR surfaceCapabilities = {};
+VkPhysicalDevice physicalDevice = VK_NULL_HANDLE;
+VkDevice device = VK_NULL_HANDLE;
+u32 queueFamily = 0;
+VkQueue graphicsQueue = VK_NULL_HANDLE;
+VkQueue presentQueue = VK_NULL_HANDLE;
+VmaAllocator allocator = VK_NULL_HANDLE;
+VkSwapchainKHR swapchain = VK_NULL_HANDLE;
+VkFormat swapchainImageFormat = VK_FORMAT_UNDEFINED;
+VkExtent2D swapchainExtent = {};
+ImageRef depthImage = {};
+//VkImage depthImage = VK_NULL_HANDLE;
+VkFormat depthImageFormat = VK_FORMAT_UNDEFINED;
+//VkImageView depthImageView = VK_NULL_HANDLE;
+//VmaAllocation depthImageAllocation = VK_NULL_HANDLE;
+BufferRef vertexBuffer = {};
+VkCommandPool commandPool = VK_NULL_HANDLE; // TODO Create one per thread
+Vec<ImageRef> textures = {};
+Vec<VkDescriptorImageInfo> textureDescriptors = {}; // TODO probably just create in the descriptor sets function
+VkSampler sampler = VK_NULL_HANDLE;
+VkDescriptorSetLayout texturesDescriptorSetLayout = VK_NULL_HANDLE;
+VkDescriptorSet texturesDescriptorSet = VK_NULL_HANDLE;
+VkDescriptorPool descriptorPool = VK_NULL_HANDLE;
+VkPipeline pipeline = VK_NULL_HANDLE;
+VkPipelineLayout pipelineLayout = VK_NULL_HANDLE;
+/* size = number of swapchain images */
+Vec<VkImage> swapchainImages = {};
+Vec<VkImageView> swapchainImageViews = {};
+Vec<VkSemaphore> renderCompleteSemaphores = {};
+/* size = number of frames in flight */
+Vec<BufferRef> shaderBuffers = {};
+Vec<VkCommandBuffer> commandBuffers = {};
+Vec<VkFence> fences = {};
+Vec<VkSemaphore> imageAcquiredSemaphores = {};
+
+typedef u32 TextureIndex;
+
+ImageRef createImage(u32 width, u32 height, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage) {
+    ImageRef image = {};
+    u32 mipLevels = 1;
+    VkImageCreateInfo imageCI{
+        .sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
+        .imageType = VK_IMAGE_TYPE_2D,
+        .format = format,
+        .extent = {.width = width, .height = height, .depth = 1 },
+        .mipLevels = mipLevels,
+        .arrayLayers = 1,
+        .samples = VK_SAMPLE_COUNT_1_BIT,
+        .tiling = tiling,
+        .usage = usage,
+        .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
+        .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+    };
+    VmaAllocationCreateInfo imageAllocCI{ .usage = VMA_MEMORY_USAGE_AUTO };
+    success(vmaCreateImage(allocator, &imageCI, &imageAllocCI, &image.image, &image.allocation, nullptr), "Could not create image");
+
+    VkImageViewCreateInfo imageViewCI{
+        .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+        .image = image.image,
+        .viewType = VK_IMAGE_VIEW_TYPE_2D,
+        .format = imageCI.format,
+        .subresourceRange = {.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT, .levelCount = mipLevels, .layerCount = 1 }
+    };
+    success(vkCreateImageView(device, &imageViewCI, nullptr, &image.view), "Could not create image view");
+    return image;
+}
+
+ImageRef loadImage(const char* path) {
+    i32 texWidth, texHeight, texChannels;
+    stbi_uc* pixels = stbi_load(path, &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
+
+    if (stbi_failure_reason()) {
+        err("stbi", stbi_failure_reason());
+    }
+
+    VkDeviceSize imageSize = (u64)texWidth * (u64)texHeight * 4; // 4 bytes per pixel in VK_FORMAT_R8G8B8A8_SRGB
+
+    ImageRef tex = createImage(texWidth, texHeight, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_HOST_TRANSFER_BIT);
+
+    VkMemoryToImageCopy memImgCopy{
+        .sType = VK_STRUCTURE_TYPE_MEMORY_TO_IMAGE_COPY,
+        .pHostPointer = pixels,
+        .imageSubresource = {
+            .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+            .mipLevel = 0,
+            .baseArrayLayer = 0,
+            .layerCount = 1,
+        },
+        .imageExtent = {
+            .width = (u32)texWidth,
+            .height = (u32)texHeight,
+            .depth = 1,
+        },
+    };
+
+    VkCopyMemoryToImageInfo memImgCopyInfo{
+        .sType = VK_STRUCTURE_TYPE_COPY_MEMORY_TO_IMAGE_INFO,
+        .dstImage = tex.image,
+        .dstImageLayout = VK_IMAGE_LAYOUT_GENERAL,
+        .regionCount = 1,
+        .pRegions = &memImgCopy,
+    };
+
+    VkHostImageLayoutTransitionInfo imageLayoutTransitionInfo{
+        .sType = VK_STRUCTURE_TYPE_HOST_IMAGE_LAYOUT_TRANSITION_INFO,
+        .image = tex.image,
+        .oldLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+        .newLayout = VK_IMAGE_LAYOUT_GENERAL,
+        .subresourceRange = {
+            .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+            .levelCount = 1,
+            .layerCount = 1,
+        },
+    };
+    vkTransitionImageLayout(device, 1, &imageLayoutTransitionInfo);
+    vkCopyMemoryToImage(device, &memImgCopyInfo); // TODO renderdoc crashes here
+    stbi_image_free(pixels);
+    return tex;
+}
+
+std::vector<u8> readFile(const std::string& filename) {
+    std::ifstream file(filename, std::ios::ate | std::ios::binary);
+
+    if (!file.is_open()) { err("Could not open file", filename); }
+
+    size_t fileSize = (size_t)file.tellg();
+    std::vector<u8> buffer(fileSize);
+
+    file.seekg(0);
+    file.read((char*)buffer.data(), fileSize);
+
+    file.close();
+
+    return buffer;
+}
+
+TextureIndex loadTexture(const char* path) {
+    assert(sampler != VK_NULL_HANDLE);
+    textures.push(loadImage(path));
+    textureDescriptors.push(VkDescriptorImageInfo{
+        .sampler = sampler,
+        .imageView = textures.back().view,
+        .imageLayout = VK_IMAGE_LAYOUT_GENERAL,
+    });
+    return textures.size - 1;
+}
 
 struct Engine {
 public:
-    /* general */
-    u32 framesInFlight;
-    u32 frameIndex;
-    u32 imageIndex;
-    bool framebufferResized;
-
-    /* glfw */
-    GLFWwindow* window;
-
-    /* vulkan */
-    VkInstance instance;
-    VkSurfaceKHR surface;
-    VkSurfaceCapabilitiesKHR surfaceCapabilities;
-    VkPhysicalDevice physicalDevice;
-    VkDevice device;
-    u32 queueFamily;
-    VkQueue graphicsQueue;
-    VkQueue presentQueue;
-    VmaAllocator allocator;
-    VkSwapchainKHR swapchain;
-    VkFormat swapchainImageFormat;
-    VkExtent2D swapchainExtent;
-    /* size = number of swapchain images */
-    Vec<VkImage> swapchainImages;
-    Vec<VkImageView> swapchainImageViews;
-    Vec<VkSemaphore> renderCompleteSemaphores;
-    VkImage depthImage;
-    VkFormat depthImageFormat;
-    VkImageView depthImageView;
-    VmaAllocation depthImageAllocation;
-    BufferRef vertexBuffer;
-    /* size = number of frames in flight */
-    Vec<BufferRef> shaderBuffers;
-    Vec<VkCommandBuffer> commandBuffers;
-    Vec<VkFence> fences;
-    Vec<VkSemaphore> imageAcquiredSemaphores;
-    VkCommandPool commandPool; // TODO Create one per thread
-    Vec<ImageRef> textures;
-    Vec<VkDescriptorImageInfo> textureDescriptors;
-    VkSampler sampler;
-    VkDescriptorSetLayout texturesDescriptorSetLayout;
-    VkDescriptorSet texturesDescriptorSet;
-    VkDescriptorPool descriptorPool;
-    VkPipeline pipeline;
-    VkPipelineLayout pipelineLayout;
-
-    /* fps */
-    std::chrono::steady_clock::time_point lastFpsTimestamp;
-    u32 frames;
-
-    void init(u32 framesInFlight) {
-        this->framesInFlight = framesInFlight;
+    void init() {
         u32 bufSize = vertices.size() * sizeof(Vertex) + indices.size() * sizeof(u16);
         initWindow();
         createInstance();
         createPhysicalDevice();
         createSurface();
-        createDevice(physicalDevice); // TODO just make a global array of extensions to use
+        createDevice(physicalDevice);
         initVma();
         createSwapchain();
         createDepthImage();
@@ -156,12 +268,7 @@ public:
         createSyncStructures();
         createCommandBuffers();
         createSamplers();
-        textures.push(loadImage("E:/Pictures/Kyaru/Chibi/tear.png"));
-        textureDescriptors.push(VkDescriptorImageInfo{
-            .sampler = sampler,
-            .imageView = textures[0].view,
-            .imageLayout = VK_IMAGE_LAYOUT_GENERAL,
-        });
+        loadTexture("E:/Pictures/Kyaru/Chibi/tear.png");
         createDescriptorSetsForTextures();
         createGraphicsPipeline();
 
@@ -187,9 +294,10 @@ private:
 
     void drawFrame() {
         success(vkWaitForFences(device, 1, &fences[frameIndex], VK_TRUE, UINT64_MAX));
+        u32 imageIndex = U32_MAX;
         {
             VkResult result = vkAcquireNextImageKHR(device, swapchain, UINT64_MAX, imageAcquiredSemaphores[frameIndex], VK_NULL_HANDLE, &imageIndex);
-            if (result == VK_ERROR_OUT_OF_DATE_KHR) { recreateSwapchain(); return; }
+            if (result == VK_ERROR_OUT_OF_DATE_KHR) { recreateSwapchain(); }
             else if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR) { err("Could not acquire swapchain image", string_VkResult(result)); }
         }
         success(vkResetFences(device, 1, &fences[frameIndex]));
@@ -237,7 +345,7 @@ private:
                     .dstAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
                     .oldLayout = VK_IMAGE_LAYOUT_UNDEFINED,
                     .newLayout = VK_IMAGE_LAYOUT_GENERAL, // TODO VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL
-                    .image = depthImage,
+                    .image = depthImage.image,
                     .subresourceRange = {.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT, .levelCount = 1, .layerCount = 1 }
                 }
             };
@@ -258,7 +366,7 @@ private:
             };
             VkRenderingAttachmentInfo depthAttachmentInfo{
                 .sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO,
-                .imageView = depthImageView,
+                .imageView = depthImage.view,
                 .imageLayout = VK_IMAGE_LAYOUT_GENERAL, // TODO VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL
                 .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
                 .storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
@@ -356,13 +464,8 @@ private:
         };
         {
             VkResult result = vkQueuePresentKHR(presentQueue, &presentInfo);
-            if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR) { framebufferResized = true; }
+            if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR) { recreateSwapchain(); }
             else if (result != VK_SUCCESS) { err("Could not present swap chain image", string_VkResult(result)); }
-        }
-
-        if (framebufferResized) {
-            framebufferResized = false;
-            recreateSwapchain();
         }
     }
 
@@ -370,7 +473,6 @@ private:
 
     // create `this->window`
     void initWindow() {
-        lastFpsTimestamp = std::chrono::high_resolution_clock::now();
         glfwInit();
         glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
         glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE);
@@ -516,15 +618,15 @@ private:
 
     // create `this->swapchain`, `this->swapchainImageFormat`, `this->swapchainExtent`, `this->swapchainImages`, `this->swapchainImageViews`
     void createSwapchain() {
-        VkExtent2D swapchainExtent = surfaceCapabilities.currentExtent;
+        swapchainExtent = surfaceCapabilities.currentExtent;
         if (surfaceCapabilities.currentExtent.width == 0xFFFFFFFF) { err("Wayland moment"); }
 
-        VkFormat imageFormat = VK_FORMAT_B8G8R8A8_SRGB;
+        swapchainImageFormat = VK_FORMAT_B8G8R8A8_SRGB;
         VkSwapchainCreateInfoKHR swapchainCI{
             .sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR,
             .surface = surface,
             .minImageCount = surfaceCapabilities.minImageCount,
-            .imageFormat = imageFormat,
+            .imageFormat = swapchainImageFormat,
             .imageColorSpace = VK_COLORSPACE_SRGB_NONLINEAR_KHR,
             .imageExtent = swapchainExtent,
             .imageArrayLayers = 1,
@@ -534,11 +636,7 @@ private:
             .presentMode = VK_PRESENT_MODE_FIFO_KHR,
             .oldSwapchain = swapchain
         };
-        VkResult result = vkCreateSwapchainKHR(device, &swapchainCI, nullptr, &swapchain);
-        if (result != VK_SUCCESS) { err("Could not create swapchain", string_VkResult(result)); }
-
-        swapchainImageFormat = imageFormat;
-        this->swapchainExtent = swapchainExtent;
+        success(vkCreateSwapchainKHR(device, &swapchainCI, nullptr, &swapchain), "Could not create swapchain");
 
         u32 imageCount;
         vkGetSwapchainImagesKHR(device, swapchain, &imageCount, nullptr);
@@ -551,11 +649,10 @@ private:
                 .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
                 .image = swapchainImages[i],
                 .viewType = VK_IMAGE_VIEW_TYPE_2D,
-                .format = imageFormat,
+                .format = swapchainImageFormat,
                 .subresourceRange = {.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT, .levelCount = 1, .layerCount = 1 }
             };
-            VkResult result = vkCreateImageView(device, &viewCI, nullptr, &swapchainImageViews[i]);
-            if (result != VK_SUCCESS) { err("Could not create image view", string_VkResult(result)); }
+            success(vkCreateImageView(device, &viewCI, nullptr, &swapchainImageViews[i]), "Could not create image view");
         }
     }
 
@@ -589,16 +686,16 @@ private:
             .flags = VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT,
             .usage = VMA_MEMORY_USAGE_AUTO
         };
-        success(vmaCreateImage(allocator, &depthImageCI, &allocCI, &depthImage, &depthImageAllocation, nullptr), "Could not create image (depth buffer)");
+        success(vmaCreateImage(allocator, &depthImageCI, &allocCI, &depthImage.image, &depthImage.allocation, nullptr), "Could not create image (depth buffer)");
 
         VkImageViewCreateInfo depthViewCI{
             .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
-            .image = depthImage,
+            .image = depthImage.image,
             .viewType = VK_IMAGE_VIEW_TYPE_2D,
             .format = depthFormat,
             .subresourceRange = {.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT, .levelCount = 1, .layerCount = 1 }
         };
-        success(vkCreateImageView(device, &depthViewCI, nullptr, &depthImageView), "Could not create image view (depth buffer)");
+        success(vkCreateImageView(device, &depthViewCI, nullptr, &depthImage.view), "Could not create image view (depth buffer)");
     }
 
     // create `this->vertexBuffer`, `this->shaderBuffers`
@@ -762,10 +859,7 @@ private:
             .descriptorSetCount = 1,
             .pSetLayouts = &texturesDescriptorSetLayout
         };
-        {
-            VkResult result = vkAllocateDescriptorSets(device, &texDescSetAlloc, &texturesDescriptorSet);
-            if (result != VK_SUCCESS) { err("Cannot create descriptor set for textures", string_VkResult(result)); }
-        }
+        success(vkAllocateDescriptorSets(device, &texDescSetAlloc, &texturesDescriptorSet), "Cannot create descriptor set for textures");
 
         VkWriteDescriptorSet writeDescSet{
             .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
@@ -942,125 +1036,6 @@ private:
         }
     }
 
-    ImageRef loadImage(const char* path) {
-        i32 texWidth, texHeight, texChannels;
-        stbi_uc* pixels = stbi_load(path, &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
-
-        if (stbi_failure_reason()) {
-            err("stbi", stbi_failure_reason());
-        }
-
-        VkDeviceSize imageSize = (u64)texWidth * (u64)texHeight * 4; // 4 bytes per pixel in VK_FORMAT_R8G8B8A8_SRGB
-
-        ImageRef tex;
-        createTextureImage(tex, texWidth, texHeight, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_HOST_TRANSFER_BIT);
-
-        VkMemoryToImageCopy memImgCopy{
-            .sType = VK_STRUCTURE_TYPE_MEMORY_TO_IMAGE_COPY,
-            .pHostPointer = pixels,
-            .imageSubresource = {
-                .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-                .mipLevel = 0,
-                .baseArrayLayer = 0,
-                .layerCount = 1,
-            },
-            .imageExtent = {
-                .width = (u32) texWidth,
-                .height = (u32) texHeight,
-                .depth = 1,
-            },
-        };
-
-        VkCopyMemoryToImageInfo memImgCopyInfo{
-            .sType = VK_STRUCTURE_TYPE_COPY_MEMORY_TO_IMAGE_INFO,
-            .dstImage = tex.image,
-            .dstImageLayout = VK_IMAGE_LAYOUT_GENERAL,
-            .regionCount = 1,
-            .pRegions = &memImgCopy,
-        };
-
-        VkHostImageLayoutTransitionInfo imageLayoutTransitionInfo{
-            .sType = VK_STRUCTURE_TYPE_HOST_IMAGE_LAYOUT_TRANSITION_INFO,
-            .image = tex.image,
-            .oldLayout = VK_IMAGE_LAYOUT_UNDEFINED,
-            .newLayout = VK_IMAGE_LAYOUT_GENERAL,
-            .subresourceRange = {
-                .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-                .levelCount = 1,
-                .layerCount = 1,
-            },
-        };
-
-        vkTransitionImageLayout(device, 1, &imageLayoutTransitionInfo);
-
-
-        //std::this_thread::sleep_for(std::chrono::milliseconds(1000));
-        //std::cout << "start copy" << std::endl;
-        //std::this_thread::sleep_for(std::chrono::milliseconds(1000));
-
-
-        vkCopyMemoryToImage(device, &memImgCopyInfo);
-
-
-        //std::this_thread::sleep_for(std::chrono::milliseconds(1000));
-        //std::cout << "returning" << std::endl;
-        //std::this_thread::sleep_for(std::chrono::milliseconds(1000));
-        
-        
-        stbi_image_free(pixels);
-        return tex;
-    }
-
-    void createTextureImage(ImageRef& image, u32 width, u32 height, VkFormat format = VK_FORMAT_R8G8B8A8_SRGB, VkImageTiling tiling = VK_IMAGE_TILING_OPTIMAL, VkImageUsageFlags usage = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT) {
-        u32 mipLevels = 1;
-        VkImageCreateInfo imageCI{
-            .sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
-            .imageType = VK_IMAGE_TYPE_2D,
-            .format = format,
-            .extent = {.width = width, .height = height, .depth = 1 },
-            .mipLevels = mipLevels,
-            .arrayLayers = 1,
-            .samples = VK_SAMPLE_COUNT_1_BIT,
-            .tiling = tiling,
-            .usage = usage,
-            .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
-            .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED, // VK_IMAGE_LAYOUT_GENERAL
-        };
-        {
-            VmaAllocationCreateInfo imageAllocCI{ .usage = VMA_MEMORY_USAGE_AUTO };
-            VkResult result = vmaCreateImage(allocator, &imageCI, &imageAllocCI, &image.image, &image.allocation, nullptr);
-            if (result != VK_SUCCESS) { err("Could not create image", string_VkResult(result)); }
-        }
-
-        VkImageViewCreateInfo imageViewCI{
-            .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
-            .image = image.image,
-            .viewType = VK_IMAGE_VIEW_TYPE_2D,
-            .format = imageCI.format,
-            .subresourceRange = {.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT, .levelCount = mipLevels, .layerCount = 1 }
-        };
-        {
-            VkResult result = vkCreateImageView(device, &imageViewCI, nullptr, &image.view);
-            if (result != VK_SUCCESS) { err("Could not create image view", string_VkResult(result)); }
-        }
-    }
-
-    std::vector<u8> readFile(const std::string& filename) {
-        std::ifstream file(filename, std::ios::ate | std::ios::binary);
-
-        if (!file.is_open()) { err("Could not open file", filename); }
-
-        size_t fileSize = (size_t)file.tellg();
-        std::vector<u8> buffer(fileSize);
-
-        file.seekg(0);
-        file.read((char*) buffer.data(), fileSize);
-
-        file.close();
-
-        return buffer;
-    }
-
     bool isWindowMinimized() {
         i32 width = 0, height = 0;
         glfwGetFramebufferSize(window, &width, &height);
@@ -1075,8 +1050,8 @@ private:
         for (u32 i = 0; i < swapchainImageViews.size; i++) {
             vkDestroyImageView(device, swapchainImageViews[i], nullptr);
         }
-        vmaDestroyImage(allocator, depthImage, depthImageAllocation);
-        vkDestroyImageView(device, depthImageView, nullptr);
+        vmaDestroyImage(allocator, depthImage.image, depthImage.allocation);
+        vkDestroyImageView(device, depthImage.view, nullptr);
         VkSwapchainKHR oldSwapchain = swapchain;
         createSwapchain();
         createDepthImage();
