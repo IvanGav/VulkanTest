@@ -3,8 +3,10 @@
 #include "engine.h"
 
 int main() {
-	engine::Engine e = {};
-	e.init();
-	e.run();
-	e.cleanup();
+	engine::init();
+    while (!glfwWindowShouldClose(engine::window)) {
+        glfwPollEvents();
+        engine::drawFrame();
+    }
+	engine::cleanup();
 }
