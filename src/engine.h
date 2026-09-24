@@ -23,13 +23,6 @@
 #define STB_IMAGE_IMPLEMENTATION
 #include <stb_image.h>
 
-#define VMA_IMPLEMENTATION
-#include <vma/vk_mem_alloc.h>
-
-#define TINYOBJLOADER_DISABLE_FAST_FLOAT
-#define TINYOBJLOADER_IMPLEMENTATION
-#include <tiny_obj_loader.h>
-
 typedef int8_t i8;
 typedef uint8_t u8;
 typedef int16_t i16;
@@ -59,16 +52,16 @@ void success(VkResult result, std::string errorMessage = "No Message Provided") 
 }
 
 struct BufferRef {
-    VmaAllocation allocation;
-    VmaAllocationInfo allocationInfo;
-    VkBuffer buffer;
-    VkDeviceAddress deviceAddress;
+    VkBuffer buffer = VK_NULL_HANDLE;
+    VkDeviceMemory memory = VK_NULL_HANDLE;
+    void* mappedData = nullptr;
+    VkDeviceAddress deviceAddress = 0;
 };
 
 struct ImageRef {
-    VmaAllocation allocation;
-    VkImage image;
-    VkImageView view;
+    VkImage image = VK_NULL_HANDLE;
+    VkImageView view = VK_NULL_HANDLE;
+    VkDeviceMemory memory = VK_NULL_HANDLE;
 };
 
 struct Vertex {
@@ -94,9 +87,9 @@ std::vector<u16> indices = {
 };
 
 /* global settings */
-std::vector<const char*> deviceExtensions = { VK_KHR_SWAPCHAIN_EXTENSION_NAME, VK_KHR_UNIFIED_IMAGE_LAYOUTS_EXTENSION_NAME };
-//std::vector<const char*> validationLayers = { "VK_LAYER_KHRONOS_validation" };
-std::vector<const char*> validationLayers = {};
+std::vector<const char*> deviceExtensions = { VK_KHR_SWAPCHAIN_EXTENSION_NAME, VK_KHR_UNIFIED_IMAGE_LAYOUTS_EXTENSION_NAME, VK_EXT_HOST_IMAGE_COPY_EXTENSION_NAME };
+std::vector<const char*> validationLayers = { "VK_LAYER_KHRONOS_validation" };
+//std::vector<const char*> validationLayers = {};
 u32 framesInFlight = 2;
 
 /* general */
@@ -114,7 +107,6 @@ VkDevice device = VK_NULL_HANDLE;
 u32 queueFamily = 0;
 VkQueue graphicsQueue = VK_NULL_HANDLE;
 VkQueue presentQueue = VK_NULL_HANDLE;
-VmaAllocator allocator = VK_NULL_HANDLE;
 VkSwapchainKHR swapchain = VK_NULL_HANDLE;
 VkFormat swapchainImageFormat = VK_FORMAT_UNDEFINED;
 VkExtent2D swapchainExtent = {};
@@ -145,6 +137,70 @@ std::vector<VkSemaphore> imageAcquiredSemaphores = {};
     Helper
 */
 
+u32 findMemoryType(VkPhysicalDevice physicalDevice, u32 typeFilter, VkMemoryPropertyFlags properties) {
+    VkPhysicalDeviceMemoryProperties memProperties;
+    vkGetPhysicalDeviceMemoryProperties(physicalDevice, &memProperties);
+    for (u32 i = 0; i < memProperties.memoryTypeCount; i++) {
+        if ((typeFilter & (1 << i)) && (memProperties.memoryTypes[i].propertyFlags & properties) == properties) {
+            return i;
+        }
+    }
+    return UINT32_MAX;
+}
+
+void createBufferAndMemory(
+    VkDeviceSize size,
+    VkBufferUsageFlags usage,
+    VkMemoryPropertyFlags memoryProperties,
+    VkBuffer& outBuffer,
+    VkDeviceMemory& outMemory,
+    void** outMappedPointer
+) {
+    // 1. Create VkBuffer handle
+    VkBufferCreateInfo bufferCI{
+        .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
+        .size = size,
+        .usage = usage,
+        .sharingMode = VK_SHARING_MODE_EXCLUSIVE
+    };
+    success(vkCreateBuffer(device, &bufferCI, nullptr, &outBuffer), "Could not create buffer");
+
+    // 2. Query memory requirements
+    VkMemoryRequirements memRequirements;
+    vkGetBufferMemoryRequirements(device, outBuffer, &memRequirements);
+
+    // 3. Find suitable memory type index
+    u32 memoryTypeIndex = findMemoryType(physicalDevice, memRequirements.memoryTypeBits, memoryProperties);
+    if (memoryTypeIndex == UINT32_MAX) {
+        success(VK_ERROR_FEATURE_NOT_PRESENT, "Could not find suitable memory type for buffer");
+    }
+
+    // 4. Handle Buffer Device Address flag requirement if needed
+    VkMemoryAllocateFlagsInfo allocFlagsInfo{
+        .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_FLAGS_INFO
+    };
+    if (usage & VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT) {
+        allocFlagsInfo.flags = VK_MEMORY_ALLOCATE_DEVICE_ADDRESS_BIT;
+    }
+
+    // 5. Allocate memory
+    VkMemoryAllocateInfo allocInfo{
+        .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
+        .pNext = (usage & VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT) ? &allocFlagsInfo : nullptr,
+        .allocationSize = memRequirements.size,
+        .memoryTypeIndex = memoryTypeIndex
+    };
+    success(vkAllocateMemory(device, &allocInfo, nullptr, &outMemory), "Could not allocate buffer memory");
+
+    // 6. Bind buffer to allocated memory
+    success(vkBindBufferMemory(device, outBuffer, outMemory, 0), "Could not bind buffer memory");
+
+    // 7. Persistently map memory (matches VMA_ALLOCATION_CREATE_MAPPED_BIT)
+    if (outMappedPointer != nullptr && (memoryProperties & VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT)) {
+        success(vkMapMemory(device, outMemory, 0, size, 0, outMappedPointer), "Could not map buffer memory");
+    }
+}
+
 ImageRef createImage(u32 width, u32 height, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, VkImageAspectFlags aspectMask) {
     ImageRef image = {};
     u32 mipLevels = 1;
@@ -152,7 +208,7 @@ ImageRef createImage(u32 width, u32 height, VkFormat format, VkImageTiling tilin
         .sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
         .imageType = VK_IMAGE_TYPE_2D,
         .format = format,
-        .extent = { .width = width, .height = height, .depth = 1 },
+        .extent = {.width = width, .height = height, .depth = 1 },
         .mipLevels = mipLevels,
         .arrayLayers = 1,
         .samples = VK_SAMPLE_COUNT_1_BIT,
@@ -161,17 +217,37 @@ ImageRef createImage(u32 width, u32 height, VkFormat format, VkImageTiling tilin
         .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
         .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
     };
-    VmaAllocationCreateInfo imageAllocCI = { .usage = VMA_MEMORY_USAGE_AUTO };
-    success(vmaCreateImage(allocator, &imageCI, &imageAllocCI, &image.image, &image.allocation, nullptr), "Could not create image");
+    success(vkCreateImage(device, &imageCI, nullptr, &image.image), "Could not create image");
+
+    VkMemoryRequirements memRequirements;
+    vkGetImageMemoryRequirements(device, image.image, &memRequirements);
+    VkMemoryPropertyFlags memProperties = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
+
+    memProperties |= VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT; // TODO check here
+
+    u32 memoryTypeIndex = findMemoryType(physicalDevice, memRequirements.memoryTypeBits, memProperties);
+    if (memoryTypeIndex == UINT32_MAX) {
+        success(VK_ERROR_FEATURE_NOT_PRESENT, "Could not find suitable memory type for image");
+    }
+
+    VkMemoryAllocateInfo allocInfo = {
+        .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
+        .allocationSize = memRequirements.size,
+        .memoryTypeIndex = memoryTypeIndex,
+    };
+    success(vkAllocateMemory(device, &allocInfo, nullptr, &image.memory), "Could not allocate image memory");
+
+    success(vkBindImageMemory(device, image.image, image.memory, 0), "Could not bind image memory");
 
     VkImageViewCreateInfo imageViewCI = {
         .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
         .image = image.image,
         .viewType = VK_IMAGE_VIEW_TYPE_2D,
         .format = imageCI.format,
-        .subresourceRange = { .aspectMask = aspectMask, .levelCount = mipLevels, .layerCount = 1 }
+        .subresourceRange = {.aspectMask = aspectMask, .levelCount = mipLevels, .layerCount = 1 }
     };
     success(vkCreateImageView(device, &imageViewCI, nullptr, &image.view), "Could not create image view");
+
     return image;
 }
 
@@ -223,11 +299,34 @@ ImageRef loadImage(const char* path) {
         },
     };
     vkTransitionImageLayout(device, 1, &imageLayoutTransitionInfo);
-    __debugbreak();
+    std::cout << "about to crash?" << std::endl;
     vkCopyMemoryToImage(device, &memImgCopyInfo); // TODO renderdoc crashes here
-    __debugbreak();
     stbi_image_free(pixels);
     return tex;
+}
+
+// Minimal setup assumptions:
+// - VkDevice created with VkPhysicalDeviceHostImageCopyFeatures::hostImageCopy = VK_TRUE
+// - VkImage created with VK_IMAGE_USAGE_HOST_TRANSFER_BIT
+// - Image memory allocated with VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT
+void reproHostImageCopy(VkDevice device, VkImage image, void* pixelData, uint32_t width, uint32_t height) {
+    VkMemoryToImageCopy region{
+        .sType = VK_STRUCTURE_TYPE_MEMORY_TO_IMAGE_COPY,
+        .pHostPointer = pixelData,
+        .imageSubresource = { .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT, .layerCount = 1 },
+        .imageExtent = { .width = width, .height = height, .depth = 1 },
+    };
+
+    VkCopyMemoryToImageInfo info{
+        .sType = VK_STRUCTURE_TYPE_COPY_MEMORY_TO_IMAGE_INFO,
+        .dstImage = image,
+        .dstImageLayout = VK_IMAGE_LAYOUT_GENERAL,
+        .regionCount = 1,
+        .pRegions = &region,
+    };
+
+    // When capturing with RenderDco, crashes inside nvoglv64.dll
+    vkCopyMemoryToImage(device, &info);
 }
 
 std::vector<char> readFile(const std::string& filename) {
@@ -391,24 +490,6 @@ void createDevice(VkPhysicalDevice physicalDevice) {
     vkGetDeviceQueue(device, queueFamily, 0, &presentQueue);
 }
 
-// create `allocator`
-void initVma() {
-    VmaVulkanFunctions vkFunctions{
-        .vkGetInstanceProcAddr = vkGetInstanceProcAddr,
-        .vkGetDeviceProcAddr = vkGetDeviceProcAddr,
-        .vkCreateImage = vkCreateImage
-    };
-    VmaAllocatorCreateInfo allocatorCI{
-        .flags = VMA_ALLOCATOR_CREATE_BUFFER_DEVICE_ADDRESS_BIT,
-        .physicalDevice = physicalDevice,
-        .device = device,
-        .pVulkanFunctions = &vkFunctions,
-        .instance = instance
-    };
-    VkResult result = vmaCreateAllocator(&allocatorCI, &allocator);
-    if (result != VK_SUCCESS) { err("Could not create VMA allocator", string_VkResult(result)); }
-}
-
 // create `swapchain`, `swapchainImageFormat`, `swapchainExtent`, `swapchainImages`, `swapchainImageViews`
 void createSwapchain() {
     swapchainExtent = surfaceCapabilities.currentExtent;
@@ -449,7 +530,7 @@ void createSwapchain() {
 }
 
 // create `depthImage`, `depthImageAllocation`, `depthImageView`
-void createDepthImage() {
+void createDepthImage() { // TODO AI warning
     std::vector<VkFormat> depthFormatList = { VK_FORMAT_D32_SFLOAT_S8_UINT, VK_FORMAT_D24_UNORM_S8_UINT };
     VkFormat depthFormat = VK_FORMAT_UNDEFINED;
     for (VkFormat& format : depthFormatList) {
@@ -461,6 +542,7 @@ void createDepthImage() {
         }
     }
     depthImageFormat = depthFormat;
+
     VkImageCreateInfo depthImageCI{
         .sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
         .imageType = VK_IMAGE_TYPE_2D,
@@ -474,11 +556,31 @@ void createDepthImage() {
         .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
         .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
     };
-    VmaAllocationCreateInfo allocCI{
-        .flags = VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT,
-        .usage = VMA_MEMORY_USAGE_AUTO
+    success(vkCreateImage(device, &depthImageCI, nullptr, &depthImage.image), "Could not create image (depth buffer)");
+
+    VkMemoryRequirements memRequirements;
+    vkGetImageMemoryRequirements(device, depthImage.image, &memRequirements);
+
+    u32 memoryTypeIndex = findMemoryType(physicalDevice, memRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+    if (memoryTypeIndex == UINT32_MAX) {
+        success(VK_ERROR_FEATURE_NOT_PRESENT, "Could not find suitable memory type for depth image");
+    }
+
+    VkMemoryDedicatedAllocateInfo dedicatedAllocInfo{
+        .sType = VK_STRUCTURE_TYPE_MEMORY_DEDICATED_ALLOCATE_INFO,
+        .image = depthImage.image,
+        .buffer = VK_NULL_HANDLE
     };
-    success(vmaCreateImage(allocator, &depthImageCI, &allocCI, &depthImage.image, &depthImage.allocation, nullptr), "Could not create image (depth buffer)");
+
+    VkMemoryAllocateInfo allocInfo{
+        .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
+        .pNext = &dedicatedAllocInfo, // TODO check
+        .allocationSize = memRequirements.size,
+        .memoryTypeIndex = memoryTypeIndex,
+    };
+    success(vkAllocateMemory(device, &allocInfo, nullptr, &depthImage.memory), "Could not allocate depth image memory");
+
+    success(vkBindImageMemory(device, depthImage.image, depthImage.memory, 0), "Could not bind depth image memory");
 
     VkImageViewCreateInfo depthViewCI{
         .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
@@ -492,32 +594,43 @@ void createDepthImage() {
 
 // create `vertexBuffer`, `indexBuffer`, `shaderBuffers`
 void createBuffers() {
-    VmaAllocationCreateInfo bufferAllocCI{
-        .flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT | VMA_ALLOCATION_CREATE_HOST_ACCESS_ALLOW_TRANSFER_INSTEAD_BIT | VMA_ALLOCATION_CREATE_MAPPED_BIT,
-        .usage = VMA_MEMORY_USAGE_AUTO
-    };
+    // Memory flags equivalent to VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT:
+    // HOST_VISIBLE allows host mapping, HOST_COHERENT avoids manual flush calls (vkFlushMappedMemoryRanges).
+    VkMemoryPropertyFlags hostMemFlags = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
 
-    VkBufferCreateInfo vBufferCI{
-        .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
-        .size = vertices.size() * sizeof(Vertex),
-        .usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT
-    };
-    VkBufferCreateInfo iBufferCI{
-        .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
-        .size = indices.size() * sizeof(u16),
-        .usage = VK_BUFFER_USAGE_INDEX_BUFFER_BIT
-    };
-    success(vmaCreateBuffer(allocator, &vBufferCI, &bufferAllocCI, &vertexBuffer.buffer, &vertexBuffer.allocation, &vertexBuffer.allocationInfo), "Could not allocate vertex buffer");
-    success(vmaCreateBuffer(allocator, &iBufferCI, &bufferAllocCI, &indexBuffer.buffer, &indexBuffer.allocation, &indexBuffer.allocationInfo), "Could not allocate index buffer");
+    // 1. Vertex Buffer
+    createBufferAndMemory(
+        vertices.size() * sizeof(Vertex),
+        VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
+        hostMemFlags,
+        vertexBuffer.buffer,
+        vertexBuffer.memory,
+        &vertexBuffer.mappedData
+    );
 
+    // 2. Index Buffer
+    createBufferAndMemory(
+        indices.size() * sizeof(u16),
+        VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
+        hostMemFlags,
+        indexBuffer.buffer,
+        indexBuffer.memory,
+        &indexBuffer.mappedData
+    );
+
+    // 3. Shader Uniform Buffers (with Buffer Device Address)
     shaderBuffers.resize(framesInFlight);
     for (u32 i = 0; i < framesInFlight; i++) {
-        VkBufferCreateInfo uBufferCI{
-            .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
-            .size = sizeof(ShaderUniformData),
-            .usage = VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT
-        };
-        success(vmaCreateBuffer(allocator, &uBufferCI, &bufferAllocCI, &shaderBuffers[i].buffer, &shaderBuffers[i].allocation, &shaderBuffers[i].allocationInfo), "Could not allocate buffer");
+        createBufferAndMemory(
+            sizeof(ShaderUniformData),
+            VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
+            hostMemFlags,
+            shaderBuffers[i].buffer,
+            shaderBuffers[i].memory,
+            &shaderBuffers[i].mappedData
+        );
+
+        // Fetch Buffer Device Address
         VkBufferDeviceAddressInfo uBufferBdaInfo{
             .sType = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO,
             .buffer = shaderBuffers[i].buffer
@@ -771,8 +884,9 @@ void recreateSwapchain() {
     for (u32 i = 0; i < (u32)swapchainImageViews.size(); i++) {
         vkDestroyImageView(device, swapchainImageViews[i], nullptr);
     }
-    vmaDestroyImage(allocator, depthImage.image, depthImage.allocation);
     vkDestroyImageView(device, depthImage.view, nullptr);
+    vkDestroyImage(device, depthImage.image, nullptr);
+    vkFreeMemory(device, depthImage.memory, nullptr);
     VkSwapchainKHR oldSwapchain = swapchain;
     createSwapchain();
     createDepthImage();
@@ -807,7 +921,6 @@ void init() {
     createPhysicalDevice();
     createSurface();
     createDevice(physicalDevice);
-    initVma();
     createSwapchain();
     createDepthImage();
     createBuffers();
@@ -817,8 +930,8 @@ void init() {
     loadTexture("asset/vulkan.png");
     createDescriptorSetsForTextures();
     createGraphicsPipeline();
-    memcpy(vertexBuffer.allocationInfo.pMappedData, vertices.data(), vertices.size() * sizeof(Vertex));
-    memcpy(indexBuffer.allocationInfo.pMappedData, indices.data(), indices.size() * sizeof(u16));
+    memcpy(vertexBuffer.mappedData, vertices.data(), vertices.size() * sizeof(Vertex));
+    memcpy(indexBuffer.mappedData, indices.data(), indices.size() * sizeof(u16));
 }
 
 void cleanup() {
@@ -829,7 +942,8 @@ void cleanup() {
     vkDestroyDescriptorSetLayout(device, texturesDescriptorSetLayout, nullptr);
     for (ImageRef tex : textures) {
         vkDestroyImageView(device, tex.view, nullptr);
-        vmaDestroyImage(allocator, tex.image, tex.allocation);
+        vkDestroyImage(device, tex.image, nullptr);
+        vkFreeMemory(device, tex.memory, nullptr);
     }
     vkDestroySampler(device, sampler, nullptr);
     vkDestroyCommandPool(device, commandPool, nullptr);
@@ -843,17 +957,20 @@ void cleanup() {
         vkDestroySemaphore(device, sem, nullptr);
     }
     for (BufferRef buffer : shaderBuffers) {
-        vmaDestroyBuffer(allocator, buffer.buffer, buffer.allocation);
+        vkUnmapMemory(device, buffer.memory);
+        vkDestroyBuffer(device, buffer.buffer, nullptr);
     }
-    vmaDestroyBuffer(allocator, indexBuffer.buffer, indexBuffer.allocation);
-    vmaDestroyBuffer(allocator, vertexBuffer.buffer, vertexBuffer.allocation);
+    vkUnmapMemory(device, indexBuffer.memory);
+    vkDestroyBuffer(device, indexBuffer.buffer, nullptr);
+    vkUnmapMemory(device, vertexBuffer.memory);
+    vkDestroyBuffer(device, vertexBuffer.buffer, nullptr);
     vkDestroyImageView(device, depthImage.view, nullptr);
-    vmaDestroyImage(allocator, depthImage.image, depthImage.allocation);
+    vkDestroyImage(device, depthImage.image, nullptr);
+    vkFreeMemory(device, depthImage.memory, nullptr);
     for (VkImageView view : swapchainImageViews) {
         vkDestroyImageView(device, view, nullptr);
     }
     vkDestroySwapchainKHR(device, swapchain, nullptr);
-    vmaDestroyAllocator(allocator);
     vkDestroyDevice(device, nullptr);
     vkDestroySurfaceKHR(instance, surface, nullptr);
     vkDestroyInstance(instance, nullptr);
@@ -885,7 +1002,7 @@ void drawFrame() {
         };
         uniformData.proj[1][1] *= -1;
 
-        memcpy(shaderBuffers[frameIndex].allocationInfo.pMappedData, &uniformData, sizeof(ShaderUniformData));
+        memcpy(shaderBuffers[frameIndex].mappedData, &uniformData, sizeof(ShaderUniformData));
     }
 
     // Render
