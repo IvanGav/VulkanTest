@@ -16,7 +16,7 @@ struct Slice {
     static Slice<T> from(Slice<T> slice) { return slice; }
     static Slice<u8> from(char const* ptr) { return Slice<u8> {.data = (u8*)ptr, .size = (u32)strlen(ptr) }; }
     static Slice<u8> from(char* ptr) { return Slice<u8> { .data = (u8*)ptr, .size = (u32)strlen(ptr) }; }
-    static Slice<T> from(std::vector<T> vec) { return Slice<T> {.data = vec.data(), .size = (u32)vec.size() }; }
+    static Slice<T> from(std::vector<T>& vec) { return Slice<T> {.data = vec.data(), .size = (u32)vec.size() }; }
 
     //OwnedSlice<T> to_owned() {
     //    return OwnedSlice<T>::from(*this);

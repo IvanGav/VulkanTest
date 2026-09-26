@@ -157,10 +157,13 @@
     <ClInclude Include="src\core\str.h" />
     <ClInclude Include="src\core\tinyvec.h" />
     <ClInclude Include="src\core\vec.h" />
+    <ClInclude Include="src\data.h" />
     <ClInclude Include="src\engine.h" />
+    <ClInclude Include="src\input.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include=".gitignore" />
+    <None Include="README.md" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

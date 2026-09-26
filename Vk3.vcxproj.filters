@@ -50,8 +50,15 @@
     <ClInclude Include="src\engine.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="src\input.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\data.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include=".gitignore" />
+    <None Include="README.md" />
   </ItemGroup>
 </Project>
