@@ -18,8 +18,8 @@ struct {
 int main() {
     {
         textures.monke = engine::loadTexture("asset/monke.png");
-        textures.kyaru = engine::loadTexture("E:/Pictures/Kyaru/Chibi/tear.png");
-        textures.triangle = engine::loadTexture("E:/Pictures/Icons/vulkan.png");
+        textures.kyaru = engine::loadTexture("asset/kyaru.png");
+        textures.triangle = engine::loadTexture("asset/triangle.png");
     }
     {
         meshes.monke = engine::loadMeshObj("asset/monke.obj");
@@ -44,7 +44,6 @@ int main() {
         engine::ShaderInstanceData instanceData[3] = {
             { .model = glm::rotate(glm::mat4(1.0f), data::time * glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f)), .texture = textures.monke },
             { .model = glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 10.0f, sin(data::time) * 5.0f)), .texture = textures.triangle },
-            //{ .model = glm::rotate(glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, -10.0f, sin(data::time + 3.0f) * 3.0f)), glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 0.0f)), .texture = textures.kyaru }
             { .model = glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, -10.0f, sin(data::time + 3.0f) * 3.0f)), .texture = textures.kyaru }
         };
         engine::startDraw(uniformData, { .data = instanceData, .size = 3 });
