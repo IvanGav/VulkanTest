@@ -5,48 +5,47 @@
 
 namespace input {
 
-// angles in radians
-struct Cam {
-    glm::vec3 pos;
-    f32 pitch;
-    f32 yaw;
-    f32 fov;
-
-    glm::mat4 projMat() {
-        glm::mat4 proj = glm::perspective(fov, engine::swapchainExtent.width / (f32)engine::swapchainExtent.height, 0.1f, 1000.0f);
-        proj[1][1] *= -1;
-        return proj;
-    }
-    glm::mat4 viewMat() {
-        return glm::lookAt(pos, pos + dirLook(), dirUp());
-    }
-    glm::vec3 dirLook() {
-        return glm::normalize(glm::vec3(cos(yaw) * cos(pitch), sin(yaw) * cos(pitch), sin(pitch)));
-    }
-    glm::vec3 dirForward() {
-        return glm::normalize(glm::vec3(cos(yaw), sin(yaw), 0.0f));
-    }
-    glm::vec3 dirRight() {
-        return -glm::normalize(glm::cross(dirForward(), dirUp()));
-    }
-    glm::vec3 dirUp() {
-        return glm::vec3(0.0f, 0.0f, 1.0f);
-    }
-};
+// how much a key has to be held down for to count as being "held"
+const f32 KEY_HELD_DELAY = 0.15;
 
 glm::dvec2 mousePos = {};
 glm::dvec2 mouseDelta = {};
-bool mouseCaptured = false;
 
 glm::dvec2 scrollDelta = {};
 bool scrollJustSet = false;
 
-void keyCallback(GLFWwindow* window, i32 key, i32 scancode, i32 action, i32 mods) {
+u32 keyDownFrame[GLFW_KEY_LAST] = {};
+u32 keyUpFrame[GLFW_KEY_LAST] = {};
+f64 keyTimestamp[GLFW_KEY_LAST] = {};
+u32 mouseButtonDownFrame[GLFW_MOUSE_BUTTON_LAST] = {};
+u32 mouseButtonUpFrame[GLFW_MOUSE_BUTTON_LAST] = {};
 
+void keyCallback(GLFWwindow* window, i32 key, i32 scancode, i32 action, i32 mods) {
+    switch (action) {
+    case GLFW_PRESS: {
+        keyDownFrame[key] = data::frame;
+        keyTimestamp[key] = data::time;
+        break;
+    }
+    case GLFW_RELEASE: {
+        keyUpFrame[key] = data::frame;
+        keyTimestamp[key] = data::time;
+        break;
+    }
+    }
 }
 
 void mouseButtonCallback(GLFWwindow* window, i32 button, i32 action, i32 mods) {
-
+    switch (action) {
+    case GLFW_PRESS: {
+        mouseButtonDownFrame[button] = data::frame;
+        break;
+    }
+    case GLFW_RELEASE: {
+        mouseButtonUpFrame[button] = data::frame;
+        break;
+    }
+    }
 }
 
 void scrollCallback(GLFWwindow* window, f64 xoffset, f64 yoffset) {
@@ -65,11 +64,9 @@ void init() {
     glfwSetInputMode(engine::window, GLFW_STICKY_KEYS, GLFW_TRUE);
 }
 
-bool keyDown(i32 key) {
-    return glfwGetKey(engine::window, key) == GLFW_PRESS;
-}
-
-void pollMouseMovement() {
+// Make sure to call this after data::frameTick in this frame, because `*Released` and `*Pressed` will not work properly otherwise
+void frameTick() {
+    glfwPollEvents();
     glm::dvec2 mousePosNew = {};
     glfwGetCursorPos(engine::window, &mousePosNew.x, &mousePosNew.y);
     mouseDelta = mousePosNew - mousePos;
@@ -79,65 +76,42 @@ void pollMouseMovement() {
     else { scrollDelta = {}; }
 }
 
-void cameraMovement(Cam& c) {
-    if (keyDown(GLFW_KEY_W)) {
-        c.pos += c.dirForward() * 0.2f;
-    }
-    if (keyDown(GLFW_KEY_S)) {
-        c.pos -= c.dirForward() * 0.2f;
-    }
-    if (keyDown(GLFW_KEY_A)) {
-        c.pos += c.dirRight() * 0.2f;
-    }
-    if (keyDown(GLFW_KEY_D)) {
-        c.pos -= c.dirRight() * 0.2f;
-    }
-    if (keyDown(GLFW_KEY_SPACE)) {
-        c.pos += c.dirUp() * 0.2f;
-    }
-    if (keyDown(GLFW_KEY_LEFT_ALT)) {
-        c.pos -= c.dirUp() * 0.2f;
-    }
-    if (mouseCaptured) {
-        c.yaw -= f32(mouseDelta.x / 500.0);
-        c.pitch -= f32(mouseDelta.y / 500.0);
-        c.pitch = glm::clamp(c.pitch, glm::radians(-89.0f), glm::radians(89.0f));
-    }
-    if (scrollDelta.y != 0.0) {
-        c.fov -= (f32)glm::radians(scrollDelta.y * 2.0);
-        c.fov = glm::clamp(c.fov, glm::radians(1.0f), glm::radians(179.0f));
-    }
+// true as long as key is down
+bool keyDown(i32 key) {
+    return keyDownFrame[key] > keyUpFrame[key] || (keyDownFrame[key] == keyUpFrame[key] && data::frame == keyDownFrame[key]);
 }
-
-void captureReleaseMouse() {
-    if (keyDown(GLFW_KEY_ESCAPE)) {
-        glfwSetInputMode(engine::window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
-        mouseCaptured = false;
-    }
-    if (glfwGetMouseButton(engine::window, GLFW_MOUSE_BUTTON_LEFT) == GLFW_PRESS) {
-        glfwSetInputMode(engine::window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
-        mouseCaptured = true;
-    }
+// true as long as key is up
+bool keyUp(i32 key) {
+    return !keyDown(key);
 }
-
-// TODO interface I want
-
-u8 keyState[GLFW_KEY_LAST] = {};
-f32 keyTimestamp[GLFW_KEY_LAST] = {};
-u8 mouseButtonState[GLFW_MOUSE_BUTTON_LAST] = {};
-
-bool keyUp(i32 key); // true as long as key is up
-bool keyDown(i32 key); // true as long as key is down
-bool keyReleased(i32 key); // guaranteed to be true for exactly 1 frame after the key was actually pressed
-bool keyPressed(i32 key); // guaranteed to be true for exactly 1 frame after the key was actually pressed
-bool keyHeld(i32 key); // true when key held for some amount of time
-
-// Same as above but for mouse buttons
-bool mouseButtonUp(i32 mouseButton);
-bool mouseButtonDown(i32 mouseButton);
-bool mouseButtonReleased(i32 mouseButton);
-bool mouseButtonPressed(i32 mouseButton);
-
-// scroll wheel and mouse button interface pretty much as it is right now, maybe some helper getter functions
-
+// guaranteed to be true for exactly 1 frame after the key was actually pressed
+bool keyPressed(i32 key) {
+    return data::frame == keyDownFrame[key];
+}
+// guaranteed to be true for exactly 1 frame after the key was actually released
+bool keyReleased(i32 key) {
+    if (keyUpFrame[key] == keyDownFrame[key]) { return data::frame == (keyUpFrame[key] + 1); }
+    return data::frame == keyUpFrame[key];
+}
+// true when key held for some amount of time
+bool keyHeld(i32 key) {
+    return keyDown(key) && (data::time - keyTimestamp[key] >= KEY_HELD_DELAY);
+}
+// true as long as mouse button is down
+bool mouseButtonDown(i32 mouseButton) {
+    return mouseButtonDownFrame[mouseButton] > mouseButtonUpFrame[mouseButton] || (mouseButtonDownFrame[mouseButton] == mouseButtonUpFrame[mouseButton] && data::frame == mouseButtonDownFrame[mouseButton]);
+}
+// true as long as mouse button is up
+bool mouseButtonUp(i32 mouseButton) {
+    return !mouseButtonDown(mouseButton);
+}
+// guaranteed to be true for exactly 1 frame after the mouse button was actually pressed
+bool mouseButtonPressed(i32 mouseButton) {
+    return data::frame == mouseButtonDownFrame[mouseButton];
+}
+// guaranteed to be true for exactly 1 frame after the mouse button was actually released
+bool mouseButtonReleased(i32 mouseButton) {
+    if (mouseButtonUpFrame[mouseButton] == mouseButtonDownFrame[mouseButton]) { return data::frame == (mouseButtonUpFrame[mouseButton] + 1); }
+    return data::frame == mouseButtonUpFrame[mouseButton];
+}
 }
