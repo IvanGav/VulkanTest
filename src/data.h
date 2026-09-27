@@ -9,7 +9,7 @@ const u32 FPS_BUFFER_SIZE = 60;
 
 f64 time = 0.0; // seconds since launch
 f64 timeDelta = 0.0; // seconds last frame took
-u32 frame = 2; // frames since launch
+u32 frame = 2; // frames since launch; starts at 2 because `input` thinks you pressed and released all buttons at frame 0 otherwise; fix later somehow
 f64 fps = 0.0; // fps, averaged over past FPS_BUFFER_SIZE frames
 i32 windowWidth = 0; // logical window width
 i32 windowHeight = 0; // logical window height
