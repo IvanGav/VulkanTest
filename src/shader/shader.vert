@@ -36,6 +36,6 @@ void main() {
     gl_Position = pc.data.u.proj * pc.data.u.view * worldPosition;
     outPosition = worldPosition.xyz;
     outUV = inUV;
-    outNormal = (modelMat * vec4(inNormal, 1.0)).xyz;
+    outNormal = (modelMat * vec4(inNormal, 0.0)).xyz;
     textureIndex = pc.data.i[gl_InstanceIndex].texture;
 }

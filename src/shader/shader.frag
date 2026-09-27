@@ -31,7 +31,7 @@ layout(location = 3) flat in uint textureIndex;
 
 layout(location = 0) out vec4 outColor;
 
-const vec3 lightPos = vec3(-2.0, 2.0, 2.0);
+const vec3 lightPos = vec3(-2.0, -5.0, 2.0);
 const vec3 lightColor = vec3(1.0, 1.0, 1.0);
 const float lightPower = 100.0;
 const vec3 ambientColor = vec3(0.1, 0.0, 0.0);
@@ -50,9 +50,7 @@ void main() {
     float specular = 0.0;
 
     if (lambertian > 0.0) {
-
-        vec3 viewDir = normalize(pc.data.u.camPosition - inPosition); // TODO doesn't actually work, I messed something up
-
+        vec3 viewDir = normalize(pc.data.u.camPosition - inPosition);
         vec3 halfDir = normalize(lightDir + viewDir);
         float specAngle = max(dot(halfDir, normal), 0.0);
         specular = pow(specAngle, shininess);

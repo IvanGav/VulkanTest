@@ -860,10 +860,10 @@ MeshRef loadMeshObj(const char* path) {
 MeshRef loadTestMesh() {
     assert(!initialized);
     MeshRef mesh = { .ioff = (u32)indices.size(), .size = 6 };
-    vertices.push_back({ {0.0f,  0.5f,  0.5f}, {0.0f, 0.0f}, {0.0f, 1.0f, 0.0f} });
-    vertices.push_back({ {0.0f, -0.5f,  0.5f}, {1.0f, 0.0f}, {0.0f, 1.0f, 0.0f} });
-    vertices.push_back({ {0.0f, -0.5f, -0.5f}, {1.0f, 1.0f}, {0.0f, 1.0f, 0.0f} });
-    vertices.push_back({ {0.0f,  0.5f, -0.5f}, {0.0f, 1.0f}, {0.0f, 1.0f, 0.0f} });
+    vertices.push_back({ .pos = {0.0f,  0.5f,  0.5f}, .uv = {0.0f, 0.0f}, .normal = {1.0f, 0.0f, 0.0f} });
+    vertices.push_back({ .pos = {0.0f, -0.5f,  0.5f}, .uv = {1.0f, 0.0f}, .normal = {1.0f, 0.0f, 0.0f} });
+    vertices.push_back({ .pos = {0.0f, -0.5f, -0.5f}, .uv = {1.0f, 1.0f}, .normal = {1.0f, 0.0f, 0.0f} });
+    vertices.push_back({ .pos = {0.0f,  0.5f, -0.5f}, .uv = {0.0f, 1.0f}, .normal = {1.0f, 0.0f, 0.0f} });
     indices.push_back(mesh.ioff + 0);
     indices.push_back(mesh.ioff + 1);
     indices.push_back(mesh.ioff + 2);

@@ -126,7 +126,7 @@ int main() {
         engine::ShaderInstanceData instanceData[3] = {
             { .model = glm::rotate(glm::mat4(1.0f), f32(data::time) * glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f)), .texture = textures.monke },
             { .model = glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 10.0f, sin(f32(data::time)) * 5.0f)), .texture = textures.triangle },
-            { .model = glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, -10.0f, sin(f32(data::time) + 3.0f) * 3.0f)), .texture = textures.kyaru }
+            { .model = glm::rotate(glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, -10.0f, sin(f32(data::time) + 3.0f) * 3.0f)), glm::radians(180.0f), glm::vec3(0.0f, 0.0f, 1.0f)), .texture = textures.kyaru }
         };
         engine::startDraw(uniformData, { .data = instanceData, .size = 3 });
         engine::drawMesh(meshes.monke, 2);
