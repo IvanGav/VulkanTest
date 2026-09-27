@@ -89,11 +89,11 @@ void cameraMovement(Cam& c) {
 }
 
 void captureReleaseMouse() {
-    if (input::keyDown(GLFW_KEY_ESCAPE)) {
+    if (input::keyPressed(GLFW_KEY_ESCAPE)) {
         glfwSetInputMode(engine::window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
         mouseCaptured = false;
     }
-    if (glfwGetMouseButton(engine::window, GLFW_MOUSE_BUTTON_LEFT) == GLFW_PRESS) {
+    if (input::mouseButtonPressed(GLFW_MOUSE_BUTTON_LEFT)) {
         glfwSetInputMode(engine::window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
         mouseCaptured = true;
     }
