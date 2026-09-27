@@ -1,6 +1,7 @@
 #pragma once
 
 #include "engine.h"
+#include "data.h"
 
 namespace input {
 
@@ -40,6 +41,14 @@ bool mouseCaptured = false;
 glm::dvec2 scrollDelta = {};
 bool scrollJustSet = false;
 
+void keyCallback(GLFWwindow* window, i32 key, i32 scancode, i32 action, i32 mods) {
+
+}
+
+void mouseButtonCallback(GLFWwindow* window, i32 button, i32 action, i32 mods) {
+
+}
+
 void scrollCallback(GLFWwindow* window, f64 xoffset, f64 yoffset) {
     scrollDelta.x = xoffset;
     scrollDelta.y = yoffset;
@@ -47,14 +56,17 @@ void scrollCallback(GLFWwindow* window, f64 xoffset, f64 yoffset) {
 }
 
 void init() {
+    glfwSetKeyCallback(engine::window, keyCallback);
+    glfwSetMouseButtonCallback(engine::window, mouseButtonCallback);
     glfwSetScrollCallback(engine::window, scrollCallback);
     if (glfwRawMouseMotionSupported()) {
         glfwSetInputMode(engine::window, GLFW_RAW_MOUSE_MOTION, GLFW_TRUE);
     }
+    glfwSetInputMode(engine::window, GLFW_STICKY_KEYS, GLFW_TRUE);
 }
 
 bool keyDown(i32 key) {
-    return glfwGetKey(engine::window, key) == GLFW_PRESS || glfwGetKey(engine::window, key) == GLFW_REPEAT;
+    return glfwGetKey(engine::window, key) == GLFW_PRESS;
 }
 
 void pollMouseMovement() {
@@ -107,5 +119,25 @@ void captureReleaseMouse() {
         mouseCaptured = true;
     }
 }
+
+// TODO interface I want
+
+u8 keyState[GLFW_KEY_LAST] = {};
+f32 keyTimestamp[GLFW_KEY_LAST] = {};
+u8 mouseButtonState[GLFW_MOUSE_BUTTON_LAST] = {};
+
+bool keyUp(i32 key); // true as long as key is up
+bool keyDown(i32 key); // true as long as key is down
+bool keyReleased(i32 key); // guaranteed to be true for exactly 1 frame after the key was actually pressed
+bool keyPressed(i32 key); // guaranteed to be true for exactly 1 frame after the key was actually pressed
+bool keyHeld(i32 key); // true when key held for some amount of time
+
+// Same as above but for mouse buttons
+bool mouseButtonUp(i32 mouseButton);
+bool mouseButtonDown(i32 mouseButton);
+bool mouseButtonReleased(i32 mouseButton);
+bool mouseButtonPressed(i32 mouseButton);
+
+// scroll wheel and mouse button interface pretty much as it is right now, maybe some helper getter functions
 
 }

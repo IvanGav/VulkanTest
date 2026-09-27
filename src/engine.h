@@ -443,7 +443,7 @@ void createSwapchain() {
         .imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
         .preTransform = VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR,
         .compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR,
-        .presentMode = VK_PRESENT_MODE_FIFO_KHR,
+        .presentMode = VK_PRESENT_MODE_FIFO_KHR, // aka v-sync
         .oldSwapchain = swapchain
     };
     success(vkCreateSwapchainKHR(device, &swapchainCI, nullptr, &swapchain), "Could not create swapchain");

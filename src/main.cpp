@@ -15,6 +15,14 @@ struct {
     engine::MeshRef testQuad;
 } meshes;
 
+void logFps() {
+    static f32 logAt = 1.0f;
+    if (data::time >= logAt) {
+        std::cout << "fps: " << data::fps << std::endl;
+        logAt = data::time + 1.0;
+    }
+}
+
 int main() {
     {
         textures.monke = engine::loadTexture("asset/monke.png");
@@ -31,7 +39,6 @@ int main() {
     input::Cam c = { .pos = glm::vec3(-5.0f, 0.0f, 1.0f), .pitch = 0, .yaw = 0, .fov = glm::radians(45.0f) };
     while (!glfwWindowShouldClose(engine::window)) {
         glfwPollEvents();
-        data::updateTick();
         data::frameTick();
         input::pollMouseMovement();
         input::captureReleaseMouse();
@@ -50,6 +57,7 @@ int main() {
         engine::drawMesh(meshes.monke, 2);
         engine::drawMesh(meshes.testQuad, 1);
         engine::endDraw();
+        logFps();
     }
 	engine::cleanup();
 }
