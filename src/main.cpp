@@ -15,7 +15,7 @@ struct {
     engine::MeshRef testQuad;
 } meshes;
 
-bool doLogFps = false;
+bool doLogFps = true;
 void logFps() {
     if (!doLogFps) { return; }
     static f32 logAt = 1.0f;
@@ -54,8 +54,27 @@ struct Cam {
     }
 };
 
+f64 animationStartTime = -F64_INF;
+const f64 animationLength = 0.3;
+void beginAnimation() {
+    animationStartTime = data::time;
+}
+glm::mat4 getAnimationModelMatrix() {
+    if (data::time - animationStartTime > animationLength) {
+        return glm::rotate(glm::mat4(1.0f), f32(data::time) * glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+    }
+    f64 animationProgress = (data::time - animationStartTime) / animationLength; // 0 to 1
+    animationProgress *= 2.0;
+    animationProgress = animationProgress > 1.0 ? (-(animationProgress - 2.0)) : animationProgress;
+    return glm::rotate(
+        glm::rotate(glm::mat4(1.0f), f32(data::time) * glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f)),
+        f32(animationProgress) * glm::radians(75.0f),
+        glm::vec3(1.0f, 0.0f, 0.0f)
+    );
+}
+
 bool mouseCaptured = false;
-void cameraMovement(Cam& c) {
+void handleInput(Cam& c) {
     if (input::keyDown(GLFW_KEY_W)) {
         c.pos += c.dirForward() * 0.2f;
     }
@@ -85,6 +104,9 @@ void cameraMovement(Cam& c) {
     }
     if (input::keyPressed(GLFW_KEY_F)) {
         doLogFps = !doLogFps;
+    }
+    if (input::keyPressed(GLFW_KEY_E)) {
+        beginAnimation();
     }
 }
 
@@ -117,14 +139,14 @@ int main() {
         data::frameTick();
         input::frameTick();
         captureReleaseMouse();
-        cameraMovement(c);
+        handleInput(c);
         engine::ShaderUniformData uniformData = {
                 .proj = c.projMat(),
                 .view = c.viewMat(),
                 .camPosition = c.pos
         };
         engine::ShaderInstanceData instanceData[3] = {
-            { .model = glm::rotate(glm::mat4(1.0f), f32(data::time) * glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f)), .texture = textures.monke },
+            { .model = getAnimationModelMatrix(), .texture = textures.monke},
             { .model = glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 10.0f, sin(f32(data::time)) * 5.0f)), .texture = textures.triangle },
             { .model = glm::rotate(glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, -10.0f, sin(f32(data::time) + 3.0f) * 3.0f)), glm::radians(180.0f), glm::vec3(0.0f, 0.0f, 1.0f)), .texture = textures.kyaru }
         };
