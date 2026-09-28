@@ -30,10 +30,15 @@ struct Cam {
     glm::vec3 pos;
     f32 pitch;
     f32 yaw;
-    f32 fov;
+    f32 fov; // for perspective
+    f32 viewWidth; // for orthographic
+    bool orthographic;
 
     glm::mat4 projMat() {
-        glm::mat4 proj = glm::perspective(fov, engine::swapchainExtent.width / (f32)engine::swapchainExtent.height, 0.1f, 1000.0f);
+        f32 aspect = f32(data::framebufferWidth) / f32(data::framebufferHeight);
+        glm::mat4 proj = orthographic ? 
+            glm::ortho(-viewWidth, viewWidth, -viewWidth / aspect, viewWidth / aspect, 0.1f, 1000.0f) :
+            glm::perspective(fov, aspect, 0.1f, 1000.0f);
         proj[1][1] *= -1;
         return proj;
     }
@@ -76,22 +81,22 @@ glm::mat4 getAnimationModelMatrix() {
 bool mouseCaptured = false;
 void handleInput(Cam& c) {
     if (input::keyDown(GLFW_KEY_W)) {
-        c.pos += c.dirForward() * 0.2f;
+        c.pos += c.dirForward() * 0.2f * f32(data::timeDelta * 100.0);
     }
     if (input::keyDown(GLFW_KEY_S)) {
-        c.pos -= c.dirForward() * 0.2f;
+        c.pos -= c.dirForward() * 0.2f * f32(data::timeDelta * 100.0);
     }
     if (input::keyDown(GLFW_KEY_A)) {
-        c.pos += c.dirRight() * 0.2f;
+        c.pos += c.dirRight() * 0.2f * f32(data::timeDelta * 100.0);
     }
     if (input::keyDown(GLFW_KEY_D)) {
-        c.pos -= c.dirRight() * 0.2f;
+        c.pos -= c.dirRight() * 0.2f * f32(data::timeDelta * 100.0);
     }
     if (input::keyDown(GLFW_KEY_SPACE)) {
-        c.pos += c.dirUp() * 0.2f;
+        c.pos += c.dirUp() * 0.2f * f32(data::timeDelta * 100.0);
     }
-    if (input::keyDown(GLFW_KEY_LEFT_ALT)) {
-        c.pos -= c.dirUp() * 0.2f;
+    if (input::keyDown(GLFW_KEY_LEFT_SHIFT)) {
+        c.pos -= c.dirUp() * 0.2f * f32(data::timeDelta * 100.0);
     }
     if (mouseCaptured) {
         c.yaw -= f32(input::mouseDelta.x / 500.0);
@@ -99,11 +104,17 @@ void handleInput(Cam& c) {
         c.pitch = glm::clamp(c.pitch, glm::radians(-89.0f), glm::radians(89.0f));
     }
     if (input::scrollDelta.y != 0.0) {
-        c.fov -= (f32)glm::radians(input::scrollDelta.y * 2.0);
-        c.fov = glm::clamp(c.fov, glm::radians(1.0f), glm::radians(179.0f));
+        if (c.orthographic) {
+            c.viewWidth -= input::scrollDelta.y / 2.0;
+            c.viewWidth = glm::max(c.viewWidth, 0.0f);
+        }
+        else {
+            c.fov -= (f32)glm::radians(input::scrollDelta.y * 2.0);
+            c.fov = glm::clamp(c.fov, glm::radians(1.0f), glm::radians(179.0f));
+        }
     }
-    if (input::keyPressed(GLFW_KEY_F)) {
-        doLogFps = !doLogFps;
+    if (input::keyPressed(GLFW_KEY_Q)) {
+        c.orthographic = !c.orthographic;
     }
     if (input::keyPressed(GLFW_KEY_E)) {
         beginAnimation();
@@ -134,7 +145,7 @@ int main() {
 	engine::init();
     data::init();
     input::init();
-    Cam c = { .pos = glm::vec3(-5.0f, 0.0f, 1.0f), .pitch = 0, .yaw = 0, .fov = glm::radians(45.0f) };
+    Cam c = { .pos = glm::vec3(-5.0f, 0.0f, 1.0f), .pitch = 0, .yaw = 0, .fov = glm::radians(45.0f), .viewWidth = 10.0f, .orthographic = false };
     while (!glfwWindowShouldClose(engine::window)) {
         data::frameTick();
         input::frameTick();
@@ -146,7 +157,7 @@ int main() {
                 .camPosition = c.pos
         };
         engine::ShaderInstanceData instanceData[3] = {
-            { .model = getAnimationModelMatrix(), .texture = textures.monke},
+            { .model = getAnimationModelMatrix(), .texture = textures.monke },
             { .model = glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 10.0f, sin(f32(data::time)) * 5.0f)), .texture = textures.triangle },
             { .model = glm::rotate(glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, -10.0f, sin(f32(data::time) + 3.0f) * 3.0f)), glm::radians(180.0f), glm::vec3(0.0f, 0.0f, 1.0f)), .texture = textures.kyaru }
         };

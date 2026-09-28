@@ -464,6 +464,8 @@ void createSwapchain() {
         };
         success(vkCreateImageView(device, &viewCI, nullptr, &swapchainImageViews[i]), "Could not create image view");
     }
+
+    data::framebufferResizedCallback();
 }
 
 // create `depthImage`, `depthImageAllocation`, `depthImageView`
@@ -820,7 +822,6 @@ void recreateSwapchain() {
     for (VkSemaphore& semaphore : renderCompleteSemaphores) {
         success(vkCreateSemaphore(device, &semaphoreCI, nullptr, &semaphore));
     }
-    data::framebufferResizedCallback();
 }
 
 /*
@@ -936,161 +937,161 @@ void cleanup() {
     glfwTerminate();
 }
 
-void drawFrame(MeshRef singleMesh, ShaderUniformData& uniformData, ShaderInstanceData& instanceData) {
-    success(vkWaitForFences(device, 1, &fences[frameIndex], VK_TRUE, UINT64_MAX));
-    u32 imageIndex = U32_MAX;
-    {
-        VkResult result = vkAcquireNextImageKHR(device, swapchain, UINT64_MAX, imageAcquiredSemaphores[frameIndex], VK_NULL_HANDLE, &imageIndex);
-        if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR) { recreateSwapchain(); }
-        else { success(result, "Could not acquire swapchain image"); }
-    }
-    success(vkResetFences(device, 1, &fences[frameIndex]));
-
-    // Put in uniform data
-    char* buf = (char*) (shaderBuffers[frameIndex].allocationInfo.pMappedData);
-    memcpy(buf, &uniformData, sizeof(ShaderUniformData));
-    // Put in the per-instance data (exactly 1 here)
-    memcpy(buf + sizeof(ShaderUniformData), &instanceData, sizeof(ShaderInstanceData));
-
-    // Render
-    VkCommandBuffer cb = commandBuffers[frameIndex];
-    success(vkResetCommandBuffer(cb, 0));
-    VkCommandBufferBeginInfo cbBI{
-        .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
-        .flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT
-    };
-    success(vkBeginCommandBuffer(cb, &cbBI));
-    std::vector<VkImageMemoryBarrier2> outputBarriers{
-        VkImageMemoryBarrier2{
-            .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
-            .srcStageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
-            .srcAccessMask = 0,
-            .dstStageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
-            .dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
-            .oldLayout = VK_IMAGE_LAYOUT_UNDEFINED,
-            .newLayout = VK_IMAGE_LAYOUT_GENERAL,
-            .image = swapchainImages[imageIndex],
-            .subresourceRange = { .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT, .levelCount = 1, .layerCount = 1 }
-        },
-        VkImageMemoryBarrier2{
-            .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
-            .srcStageMask = VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT,
-            .srcAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
-            .dstStageMask = VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT,
-            .dstAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
-            .oldLayout = VK_IMAGE_LAYOUT_UNDEFINED,
-            .newLayout = VK_IMAGE_LAYOUT_GENERAL,
-            .image = depthImage.image,
-            .subresourceRange = { .aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT, .levelCount = 1, .layerCount = 1 }
-        }
-    };
-    VkDependencyInfo barrierDependencyInfo{
-        .sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
-        .imageMemoryBarrierCount = (u32)outputBarriers.size(),
-        .pImageMemoryBarriers = outputBarriers.data()
-    };
-    vkCmdPipelineBarrier2(cb, &barrierDependencyInfo);
-
-    VkRenderingAttachmentInfo colorAttachmentInfo{
-        .sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO,
-        .imageView = swapchainImageViews[imageIndex],
-        .imageLayout = VK_IMAGE_LAYOUT_GENERAL,
-        .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
-        .storeOp = VK_ATTACHMENT_STORE_OP_STORE,
-        .clearValue = { .color = { 0.0f, 0.0f, 0.2f, 1.0f } }
-    };
-    VkRenderingAttachmentInfo depthAttachmentInfo{
-        .sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO,
-        .imageView = depthImage.view,
-        .imageLayout = VK_IMAGE_LAYOUT_GENERAL,
-        .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
-        .storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
-        .clearValue = { .depthStencil = {1.0f,  0} }
-    };
-    VkRenderingInfo renderingInfo{
-        .sType = VK_STRUCTURE_TYPE_RENDERING_INFO,
-        .renderArea = { .extent = swapchainExtent },
-        .layerCount = 1,
-        .colorAttachmentCount = 1,
-        .pColorAttachments = &colorAttachmentInfo,
-        .pDepthAttachment = &depthAttachmentInfo
-    };
-    vkCmdBeginRendering(cb, &renderingInfo);
-
-    VkViewport vp{ .width = (f32)swapchainExtent.width, .height = (f32)swapchainExtent.height, .minDepth = 0.0f, .maxDepth = 1.0f };
-    vkCmdSetViewport(cb, 0, 1, &vp);
-    VkRect2D scissor{ .extent = swapchainExtent };
-    vkCmdSetScissor(cb, 0, 1, &scissor);
-    vkCmdBindPipeline(cb, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
-    vkCmdBindDescriptorSets(cb, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &texturesDescriptorSet, 0, nullptr);
-    VkDeviceSize zeroOffset = 0;
-    vkCmdBindVertexBuffers(cb, 0, 1, &vertexBuffer.buffer, &zeroOffset);
-    vkCmdBindIndexBuffer(cb, indexBuffer.buffer, zeroOffset, VK_INDEX_TYPE_UINT16);
-    vkCmdPushConstants(cb, pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(VkDeviceAddress), &shaderBuffers[frameIndex].deviceAddress);
-    vkCmdDrawIndexed(cb, singleMesh.size, 1, singleMesh.ioff, 0, 0);
-    vkCmdEndRendering(cb);
-
-    VkImageMemoryBarrier2 barrierPresent{
-        .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
-        .srcStageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
-        .srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
-        .dstStageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
-        .dstAccessMask = 0,
-        .oldLayout = VK_IMAGE_LAYOUT_GENERAL,
-        .newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
-        .image = swapchainImages[imageIndex],
-        .subresourceRange = { .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT, .levelCount = 1, .layerCount = 1 }
-    };
-    VkDependencyInfo barrierPresentDependencyInfo{
-        .sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
-        .imageMemoryBarrierCount = 1,
-        .pImageMemoryBarriers = &barrierPresent
-    };
-    vkCmdPipelineBarrier2(cb, &barrierPresentDependencyInfo);
-    vkEndCommandBuffer(cb);
-
-    VkSemaphoreSubmitInfo waitSemaphoreInfo{
-        .sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO,
-        .semaphore = imageAcquiredSemaphores[frameIndex],
-        .stageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
-    };
-    VkCommandBufferSubmitInfo commandBufferSubmitInfo{
-        .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_SUBMIT_INFO,
-        .commandBuffer = cb
-    };
-    VkSemaphoreSubmitInfo signalSemaphoreInfo{
-        .sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO,
-        .semaphore = renderCompleteSemaphores[imageIndex],
-        .stageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
-    };
-    VkSubmitInfo2 submitInfo{
-        .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO_2,
-        .waitSemaphoreInfoCount = 1,
-        .pWaitSemaphoreInfos = &waitSemaphoreInfo,
-        .commandBufferInfoCount = 1,
-        .pCommandBufferInfos = &commandBufferSubmitInfo,
-        .signalSemaphoreInfoCount = 1,
-        .pSignalSemaphoreInfos = &signalSemaphoreInfo,
-    };
-    success(vkQueueSubmit2(graphicsQueue, 1, &submitInfo, fences[frameIndex]), "Could not submit queue");
-
-    frameIndex = (frameIndex + 1) % framesInFlight;
-
-    // Present
-    VkPresentInfoKHR presentInfo{
-        .sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
-        .waitSemaphoreCount = 1,
-        .pWaitSemaphores = &renderCompleteSemaphores[imageIndex],
-        .swapchainCount = 1,
-        .pSwapchains = &swapchain,
-        .pImageIndices = &imageIndex
-    };
-    {
-        VkResult result = vkQueuePresentKHR(presentQueue, &presentInfo);
-        if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR) { recreateSwapchain(); }
-        else { success(result, "Could not present swap chain image"); }
-    }
-}
+//void drawFrame(MeshRef singleMesh, ShaderUniformData& uniformData, ShaderInstanceData& instanceData) {
+//    success(vkWaitForFences(device, 1, &fences[frameIndex], VK_TRUE, UINT64_MAX));
+//    u32 imageIndex = U32_MAX;
+//    {
+//        VkResult result = vkAcquireNextImageKHR(device, swapchain, UINT64_MAX, imageAcquiredSemaphores[frameIndex], VK_NULL_HANDLE, &imageIndex);
+//        if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR) { recreateSwapchain(); }
+//        else { success(result, "Could not acquire swapchain image"); }
+//    }
+//    success(vkResetFences(device, 1, &fences[frameIndex]));
+//
+//    // Put in uniform data
+//    char* buf = (char*) (shaderBuffers[frameIndex].allocationInfo.pMappedData);
+//    memcpy(buf, &uniformData, sizeof(ShaderUniformData));
+//    // Put in the per-instance data (exactly 1 here)
+//    memcpy(buf + sizeof(ShaderUniformData), &instanceData, sizeof(ShaderInstanceData));
+//
+//    // Render
+//    VkCommandBuffer cb = commandBuffers[frameIndex];
+//    success(vkResetCommandBuffer(cb, 0));
+//    VkCommandBufferBeginInfo cbBI{
+//        .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
+//        .flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT
+//    };
+//    success(vkBeginCommandBuffer(cb, &cbBI));
+//    std::vector<VkImageMemoryBarrier2> outputBarriers{
+//        VkImageMemoryBarrier2{
+//            .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
+//            .srcStageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
+//            .srcAccessMask = 0,
+//            .dstStageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
+//            .dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+//            .oldLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+//            .newLayout = VK_IMAGE_LAYOUT_GENERAL,
+//            .image = swapchainImages[imageIndex],
+//            .subresourceRange = { .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT, .levelCount = 1, .layerCount = 1 }
+//        },
+//        VkImageMemoryBarrier2{
+//            .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
+//            .srcStageMask = VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT,
+//            .srcAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
+//            .dstStageMask = VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT,
+//            .dstAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
+//            .oldLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+//            .newLayout = VK_IMAGE_LAYOUT_GENERAL,
+//            .image = depthImage.image,
+//            .subresourceRange = { .aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT, .levelCount = 1, .layerCount = 1 }
+//        }
+//    };
+//    VkDependencyInfo barrierDependencyInfo{
+//        .sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
+//        .imageMemoryBarrierCount = (u32)outputBarriers.size(),
+//        .pImageMemoryBarriers = outputBarriers.data()
+//    };
+//    vkCmdPipelineBarrier2(cb, &barrierDependencyInfo);
+//
+//    VkRenderingAttachmentInfo colorAttachmentInfo{
+//        .sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO,
+//        .imageView = swapchainImageViews[imageIndex],
+//        .imageLayout = VK_IMAGE_LAYOUT_GENERAL,
+//        .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
+//        .storeOp = VK_ATTACHMENT_STORE_OP_STORE,
+//        .clearValue = { .color = { 0.0f, 0.0f, 0.2f, 1.0f } }
+//    };
+//    VkRenderingAttachmentInfo depthAttachmentInfo{
+//        .sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO,
+//        .imageView = depthImage.view,
+//        .imageLayout = VK_IMAGE_LAYOUT_GENERAL,
+//        .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
+//        .storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
+//        .clearValue = { .depthStencil = {1.0f,  0} }
+//    };
+//    VkRenderingInfo renderingInfo{
+//        .sType = VK_STRUCTURE_TYPE_RENDERING_INFO,
+//        .renderArea = { .extent = swapchainExtent },
+//        .layerCount = 1,
+//        .colorAttachmentCount = 1,
+//        .pColorAttachments = &colorAttachmentInfo,
+//        .pDepthAttachment = &depthAttachmentInfo
+//    };
+//    vkCmdBeginRendering(cb, &renderingInfo);
+//
+//    VkViewport vp{ .width = (f32)swapchainExtent.width, .height = (f32)swapchainExtent.height, .minDepth = 0.0f, .maxDepth = 1.0f };
+//    vkCmdSetViewport(cb, 0, 1, &vp);
+//    VkRect2D scissor{ .extent = swapchainExtent };
+//    vkCmdSetScissor(cb, 0, 1, &scissor);
+//    vkCmdBindPipeline(cb, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
+//    vkCmdBindDescriptorSets(cb, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &texturesDescriptorSet, 0, nullptr);
+//    VkDeviceSize zeroOffset = 0;
+//    vkCmdBindVertexBuffers(cb, 0, 1, &vertexBuffer.buffer, &zeroOffset);
+//    vkCmdBindIndexBuffer(cb, indexBuffer.buffer, zeroOffset, VK_INDEX_TYPE_UINT16);
+//    vkCmdPushConstants(cb, pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(VkDeviceAddress), &shaderBuffers[frameIndex].deviceAddress);
+//    vkCmdDrawIndexed(cb, singleMesh.size, 1, singleMesh.ioff, 0, 0);
+//    vkCmdEndRendering(cb);
+//
+//    VkImageMemoryBarrier2 barrierPresent{
+//        .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
+//        .srcStageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
+//        .srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+//        .dstStageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
+//        .dstAccessMask = 0,
+//        .oldLayout = VK_IMAGE_LAYOUT_GENERAL,
+//        .newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
+//        .image = swapchainImages[imageIndex],
+//        .subresourceRange = { .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT, .levelCount = 1, .layerCount = 1 }
+//    };
+//    VkDependencyInfo barrierPresentDependencyInfo{
+//        .sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
+//        .imageMemoryBarrierCount = 1,
+//        .pImageMemoryBarriers = &barrierPresent
+//    };
+//    vkCmdPipelineBarrier2(cb, &barrierPresentDependencyInfo);
+//    vkEndCommandBuffer(cb);
+//
+//    VkSemaphoreSubmitInfo waitSemaphoreInfo{
+//        .sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO,
+//        .semaphore = imageAcquiredSemaphores[frameIndex],
+//        .stageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
+//    };
+//    VkCommandBufferSubmitInfo commandBufferSubmitInfo{
+//        .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_SUBMIT_INFO,
+//        .commandBuffer = cb
+//    };
+//    VkSemaphoreSubmitInfo signalSemaphoreInfo{
+//        .sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO,
+//        .semaphore = renderCompleteSemaphores[imageIndex],
+//        .stageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
+//    };
+//    VkSubmitInfo2 submitInfo{
+//        .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO_2,
+//        .waitSemaphoreInfoCount = 1,
+//        .pWaitSemaphoreInfos = &waitSemaphoreInfo,
+//        .commandBufferInfoCount = 1,
+//        .pCommandBufferInfos = &commandBufferSubmitInfo,
+//        .signalSemaphoreInfoCount = 1,
+//        .pSignalSemaphoreInfos = &signalSemaphoreInfo,
+//    };
+//    success(vkQueueSubmit2(graphicsQueue, 1, &submitInfo, fences[frameIndex]), "Could not submit queue");
+//
+//    frameIndex = (frameIndex + 1) % framesInFlight;
+//
+//    // Present
+//    VkPresentInfoKHR presentInfo{
+//        .sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
+//        .waitSemaphoreCount = 1,
+//        .pWaitSemaphores = &renderCompleteSemaphores[imageIndex],
+//        .swapchainCount = 1,
+//        .pSwapchains = &swapchain,
+//        .pImageIndices = &imageIndex
+//    };
+//    {
+//        VkResult result = vkQueuePresentKHR(presentQueue, &presentInfo);
+//        if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR) { recreateSwapchain(); }
+//        else { success(result, "Could not present swap chain image"); }
+//    }
+//}
 
 void startDraw(ShaderUniformData& uniformData, Slice<ShaderInstanceData> instanceData) {
     assert(activeDrawCommandBuffer == VK_NULL_HANDLE);
