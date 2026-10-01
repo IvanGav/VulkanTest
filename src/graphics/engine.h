@@ -30,10 +30,10 @@
 #define TINYOBJLOADER_IMPLEMENTATION
 #include <tiny_obj_loader.h>
 
-#include "core/prelude.h"
-#include "core/slice.h"
-#include "core/vec.h"
-#include "core/str.h"
+#include "../core/prelude.h"
+#include "../core/slice.h"
+#include "../core/vec.h"
+#include "../core/str.h"
 
 namespace data {
     void framebufferResizedCallback();

@@ -157,9 +157,18 @@
     <ClInclude Include="src\core\str.h" />
     <ClInclude Include="src\core\tinyvec.h" />
     <ClInclude Include="src\core\vec.h" />
-    <ClInclude Include="src\data.h" />
-    <ClInclude Include="src\engine.h" />
-    <ClInclude Include="src\input.h" />
+    <ClInclude Include="src\game\attack.h" />
+    <ClInclude Include="src\game\blist.h" />
+    <ClInclude Include="src\game\bloon.h" />
+    <ClInclude Include="src\game\hitbox.h" />
+    <ClInclude Include="src\game\move.h" />
+    <ClInclude Include="src\game\path.h" />
+    <ClInclude Include="src\game\plist.h" />
+    <ClInclude Include="src\game\prelude.h" />
+    <ClInclude Include="src\game\proj.h" />
+    <ClInclude Include="src\graphics\data.h" />
+    <ClInclude Include="src\graphics\engine.h" />
+    <ClInclude Include="src\graphics\input.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include=".gitignore" />

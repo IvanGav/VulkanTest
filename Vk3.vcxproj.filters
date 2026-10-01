@@ -47,13 +47,40 @@
     <ClInclude Include="src\core\vec.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="src\engine.h">
+    <ClInclude Include="src\graphics\data.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="src\input.h">
+    <ClInclude Include="src\graphics\engine.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="src\data.h">
+    <ClInclude Include="src\graphics\input.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\game\attack.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\game\blist.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\game\bloon.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\game\hitbox.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\game\move.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\game\path.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\game\plist.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\game\prelude.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\game\proj.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

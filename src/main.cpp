@@ -1,8 +1,8 @@
 #include <iostream>
 
-#include "engine.h"
-#include "input.h"
-#include "data.h"
+#include "graphics/engine.h"
+#include "graphics/input.h"
+#include "graphics/data.h"
 
 struct {
     engine::TextureRef monke;
