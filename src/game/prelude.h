@@ -14,8 +14,7 @@
 //mem::Arena frame_arena; // cleared every frame
 
 u64 first_n_bits_mask(u8 number_of_bits_to_mask) {
-    return (u64(1) << number_of_bits_to_mask) - 1;
-    //return U64_MAX >> (64 - number_of_bits_to_mask); // ARGH THIS IS UNDEFINED BEHAVIOR FOR `number_of_bits_to_mask = 0` ARGHHHH I JUST SPENT MORE THAN AN HOUR TO FIND THIS ISSUE
+    return number_of_bits_to_mask == 64 ? U64_MAX : (u64(1) << number_of_bits_to_mask) - 1;
 }
 
 struct Vec2 {
