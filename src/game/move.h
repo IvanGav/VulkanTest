@@ -3,7 +3,7 @@
 #include "prelude.h"
 #include "path.h"
 
-namespace move {
+namespace nmove {
 
 // /*
 //     Movement modifiers
@@ -63,7 +63,7 @@ struct MoveAlongRoad {
     u32 target_node; // when reaching the waypoint, increment by 1
     f32 road_pos; // position along the road, mostly for "first" and "last" targeting; may be negative
     f32 speed;
-    Path* path;
+    npath::Path* path;
 
     void move(Vec2& pos_mut, f32& dir_mut) {
         this->move_helper(speed, pos_mut, dir_mut);
@@ -74,26 +74,29 @@ struct MoveAlongRoad {
     void move_helper(f32 step, Vec2& pos_mut, f32& dir_mut) {
         f32 dx = waypoint.x - pos_mut.x;
         f32 dy = waypoint.y - pos_mut.y;
-        f32 total_dist = std::hypot(dx,dy);
+        f32 total_dist = std::hypot(dx, dy);
 
         if(total_dist < step) {
             // Move to the node and advance the node index
             pos_mut.x = waypoint.x;
             pos_mut.y = waypoint.y;
+            road_pos = path->cumulative_dist[target_node];
             target_node += 1;
             if(target_node < path->nodes.size) {
                 waypoint = path->nodes[target_node];
-                road_pos = path->cumulative_dist[target_node];
             } else {
-                // maybe do something else; just indicate that this entity has is_exited the track
-                waypoint = Vec2 { .x = F32_INF, .y = F32_INF };
-                road_pos = 0.;
+                // exited the track
+                //waypoint = Vec2 { .x = F32_INF, .y = F32_INF };
+                target_node = 0;
+                waypoint = path->nodes[0];
+
             }
             this->move_helper(step-total_dist, pos_mut, dir_mut);
         } else {
             pos_mut.x += dx * step / total_dist;
             pos_mut.y += dy * step / total_dist;
             road_pos += step;
+            dir_mut = std::atan2(dy, dx);
         }
     }
 
@@ -116,14 +119,14 @@ struct MoveWaypoint {
 
 // A movement component that lets an entity to move in a straight line (add move modifier components to change direction)
 struct MoveSimple {
-    Vec2 velocity;
+    //Vec2 velocity;
+    f32 speed;
     u32 bounce; // number of bounces left
     bool collide; // if true, collide with obstacles higher than self
 
-    // TODO change directions on turn or bounce
     void move(Vec2& pos_mut, f32& dir_mut) {
-        pos_mut.x += velocity.x;
-        pos_mut.y += velocity.y;
+        pos_mut.x += speed * cos(dir_mut);
+        pos_mut.y += speed * sin(dir_mut);
     }
 };
 

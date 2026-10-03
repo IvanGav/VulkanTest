@@ -3,6 +3,7 @@
 #include "graphics/engine.h"
 #include "graphics/input.h"
 #include "graphics/data.h"
+#include "game/attack.h"
 
 struct {
     engine::TextureRef monke;
@@ -132,6 +133,61 @@ void captureReleaseMouse() {
     }
 }
 
+Vec<nbloon::Proto> bloonProtos;
+Vec<nproj::Proto> projProtos;
+blist::BList bloons;
+plist::PList projs;
+npath::Path path;
+void synthesizeBloonState() {
+    projProtos.push(nproj::Proto{
+        .damage = 1,
+        .pierce = 3,
+        .move = nmove::Move{
+            .type = nmove::Type::MoveSimple,
+            .move_simple = nmove::MoveSimple{ .speed = 0.2 }
+        },
+        .hitbox = hitbox::HB{
+            .type = hitbox::Type::Circle,
+            .circle = hitbox::Circle{ .r = 0.5 }
+        },
+        .lifetime_ticks = 100
+    });
+    bloonProtos.push(nbloon::Proto{
+        .hp = 1,
+        .type = 0,
+        .speed = 0.1,
+        .children = {.data = nullptr, .size = 0 },
+        .hitbox = hitbox::HB{.type = hitbox::Type::Circle, .circle = hitbox::Circle{.r = 0.5}},
+        .max_hitbox_dist = 0.5,
+        .speed_status_immune = false
+    });
+    bloonProtos.push(nbloon::Proto{
+        .hp = 2,
+        .type = 1,
+        .speed = 0.2,
+        .children = { .data = &bloonProtos.data, .size = 1 },
+        .hitbox = hitbox::HB{.type = hitbox::Type::Circle, .circle = hitbox::Circle{.r = 0.5}},
+        .max_hitbox_dist = 0.5,
+        .speed_status_immune = false
+    });
+    nbloon::Proto** b2children = global_arena.alloc<nbloon::Proto*>(3);
+    b2children[0] = &bloonProtos[0];
+    b2children[1] = &bloonProtos[0];
+    b2children[2] = &bloonProtos[1];
+    bloonProtos.push(nbloon::Proto{
+        .hp = 1,
+        .type = 1,
+        .speed = 0.05,
+        .children = { .data = b2children, .size = 3 },
+        .hitbox = hitbox::HB{.type = hitbox::Type::Circle, .circle = hitbox::Circle{.r = 0.5}},
+        .max_hitbox_dist = 0.5,
+        .speed_status_immune = false
+        });
+    path = npath::Path{ .nodes = Vec<Vec2>::with(&global_arena, Vec2{ -5.0, -5.0 }, Vec2{ 5.0, 5.0 }, Vec2{ -5.0, 6.0 }), .cumulative_dist = Vec<f32>::with(&global_arena, 0.0f, 14.1421356237f, 24.1920112448f) };
+    bloons = blist::BList::create();
+    projs = plist::PList::create();
+}
+
 int main() {
     {
         textures.monke = engine::loadTexture("asset/monke.png");
@@ -145,6 +201,7 @@ int main() {
 	engine::init();
     data::init();
     input::init();
+    synthesizeBloonState();
     Cam c = { .pos = glm::vec3(-5.0f, 0.0f, 1.0f), .pitch = 0, .yaw = 0, .fov = glm::radians(45.0f), .viewWidth = 10.0f, .orthographic = false };
     while (!glfwWindowShouldClose(engine::window)) {
         data::frameTick();
@@ -156,16 +213,68 @@ int main() {
                 .view = c.viewMat(),
                 .camPosition = c.pos
         };
-        engine::ShaderInstanceData instanceData[3] = {
+        std::vector<engine::ShaderInstanceData> instanceData = {
             { .model = getAnimationModelMatrix(), .texture = textures.monke },
-            { .model = glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 10.0f, sin(f32(data::time)) * 5.0f)), .texture = textures.triangle },
-            { .model = glm::rotate(glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, -10.0f, sin(f32(data::time) + 3.0f) * 3.0f)), glm::radians(180.0f), glm::vec3(0.0f, 0.0f, 1.0f)), .texture = textures.kyaru }
+            { .model = glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 10.0f, sin(f32(data::time)) * 5.0f)), .texture = textures.triangle }
         };
-        engine::startDraw(uniformData, { .data = instanceData, .size = 3 });
+        for (nbloon::Bloon& bloon : bloons) {
+            instanceData.push_back({
+                .model = glm::rotate(glm::rotate(glm::translate(glm::mat4(1.0f), glm::vec3(bloon.pos.x, bloon.pos.y, 0.0f)), glm::radians(270.0f), glm::vec3(0.0f, 1.0f, 0.0f)), bloon.dir, glm::vec3(1.0f, 0.0f, 0.0f)),
+                .texture = (bloon.type.has_any({1}) ? textures.triangle : textures.kyaru)
+            });
+        }
+        for (nproj::Projectile& proj: projs) {
+            instanceData.push_back({
+                .model = glm::rotate(glm::rotate(glm::translate(glm::mat4(1.0f), glm::vec3(proj.pos.x, proj.pos.y, 0.0f)), glm::radians(270.0f), glm::vec3(0.0f, 1.0f, 0.0f)), proj.dir, glm::vec3(1.0f, 0.0f, 0.0f)),
+                .texture = textures.monke
+            });
+        }
+        engine::startDraw(uniformData, { .data = instanceData.data(), .size = (u32)(instanceData.size())});
         engine::drawMesh(meshes.monke, 2);
-        engine::drawMesh(meshes.testQuad, 1);
+        engine::drawMesh(meshes.testQuad, bloons.bloons.size + projs.list.size);
         engine::endDraw();
         logFps();
+        if (input::keyPressed(GLFW_KEY_1)) {
+            projs.add(nproj::Projectile::spawn(&projProtos[0], ref(nproj::Buff{}), { c.pos.x, c.pos.y }, c.yaw));
+        }
+        if (input::keyPressed(GLFW_KEY_2)) {
+            bloons.add(nbloon::Bloon::spawn(&bloonProtos[0], &path));
+        }
+        if (input::keyPressed(GLFW_KEY_3)) {
+            bloons.add(nbloon::Bloon::spawn(&bloonProtos[1], &path));
+        }
+        if (input::keyPressed(GLFW_KEY_4)) {
+            bloons.add(nbloon::Bloon::spawn(&bloonProtos[2], &path));
+        }
+        if (input::keyDown(GLFW_KEY_Z)) {
+            for (nbloon::Bloon& bloon : bloons.bloons)
+                bloon.move();
+        }
+        if (input::keyDown(GLFW_KEY_X)) {
+            for (nproj::Projectile& proj : projs.list)
+                proj.move();
+        }
+        std::vector<nbloon::BID> poppedBloons; poppedBloons.reserve(128);
+        for (nbloon::Bloon& bloon : bloons) {
+            for (u32 pi = 0; pi < projs.list.size; pi++) {
+                nproj::Projectile& proj = projs.list[pi];
+                if (proj.pierce > 0 && bloon.proto->hitbox.intersect(&proj.proto->hitbox, bloon.pos, proj.pos, bloon.dir, proj.dir) && projs.can_hit(pi, bloon.bft)) {
+                    u32 oldHp = bloon.hp;
+                    bloon.hp -= proj.proto->damage;
+                    proj.pierce -= 1;
+                    projs.record_hit(pi, bloon.bft);
+                    if (bloon.hp <= 0 && oldHp > 0) { poppedBloons.push_back(bloon.bid); }
+                }
+            }
+        }
+        for (nbloon::BID bid : poppedBloons) {
+            bloons.pop(bid);
+        }
+        for (u32 i = 0; i < projs.list.size; i++) {
+            if (projs.list[i].pierce == 0 || projs.list[i].lifetime_ticks == 0) {
+                projs.del(i); i--;
+            }
+        }
     }
 	engine::cleanup();
 }

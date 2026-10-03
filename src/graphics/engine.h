@@ -42,7 +42,7 @@ namespace data {
 namespace engine {
 
 // TODO
-#define MAGIC_NUMBER 1024
+#define MAGIC_NUMBER 1024 * 10
 
 // Ensure that the result is `VK_SUCCESS`; raise an unrecoverable error when it's not
 void success(VkResult result, std::string errorMessage = "No Message Provided") {

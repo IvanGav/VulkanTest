@@ -59,6 +59,7 @@ typedef double f64;
 #define panic { std::cout << ("PANIC\n"); assert(false); std::abort(); }
 #define todo { std::cout << ("TODO\n"); assert(false); std::abort(); }
 #define warn { std::cout << "WARN: " << __FILE__ << ":" << __LINE__ << "\n"; }
+#define warn(msg) { std::cout << "WARN: " << __FILE__ << ":" << __LINE__ << ": " << msg << "\n"; }
 
 #define ceil_div(num, denom) (num/denom + (num%denom != 0))
 
@@ -77,6 +78,7 @@ void err(Args&&... strs) {
     std::cout << "ERROR: ";
     ((std::cout << std::forward<Args>(strs) << " "), ...);
     std::cout << std::endl;
+    __debugbreak();
     exit(1);
 }
 

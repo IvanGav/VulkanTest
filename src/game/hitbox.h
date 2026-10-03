@@ -3,6 +3,8 @@
 #include "prelude.h"
 
 namespace hitbox {
+    struct HB;
+
     struct Circle {
         f32 r;
     };
@@ -26,7 +28,7 @@ namespace hitbox {
             Composite composite;
         };
 
-        static HB circle(f32 r) { return HB{ .type = Type::Circle, .circle = Circle { .r = r }}; }
+        static HB make_circle(f32 r) { return HB{ .type = Type::Circle, .circle = Circle { .r = r }}; }
 
         bool intersect(HB const* other, Vec2 pos, Vec2 pos_other, f32 dir, f32 dir_other) const {
             switch(this->type) {

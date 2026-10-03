@@ -4,16 +4,18 @@
 #include "../core/mem.h"
 #include "../core/slice.h"
 #include "../core/str.h"
+#include "../core/pair.h"
+#include "../core/vec.h"
+#include "../core/tinyvec.h"
 
-mem::Arena global_arena; // never cleared
-mem::Arena game_arena; // cleared when starting/exiting a game
-mem::Arena round_arena; // cleared at the end of every round
-mem::Arena frame_arena; // cleared every frame
-
-static constexpr u32 tps = 30;
+//mem::Arena global_arena; // never cleared
+//mem::Arena game_arena; // cleared when starting/exiting a game
+//mem::Arena round_arena; // cleared at the end of every round
+//mem::Arena frame_arena; // cleared every frame
 
 u64 first_n_bits_mask(u8 number_of_bits_to_mask) {
-    return U64_MAX >> (64 - number_of_bits_to_mask);
+    return (u64(1) << number_of_bits_to_mask) - 1;
+    //return U64_MAX >> (64 - number_of_bits_to_mask); // ARGH THIS IS UNDEFINED BEHAVIOR FOR `number_of_bits_to_mask = 0` ARGHHHH I JUST SPENT MORE THAN AN HOUR TO FIND THIS ISSUE
 }
 
 struct Vec2 {

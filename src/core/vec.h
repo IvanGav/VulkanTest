@@ -20,6 +20,12 @@ struct Vec {
         return v;
     }
 
+    static Vec with_capacity(mem::Arena* arena, u32 capacity) {
+        Vec<T> v{ .arena = arena };
+        v.reserve(capacity);
+        return v;
+    }
+
     static Vec clone_slice(mem::Arena* arena, Slice<T>& to_clone) {
         Vec<T> v { .arena = arena };
         v.resize(to_clone.size);
@@ -111,6 +117,7 @@ struct Vec {
     }
 
     T& operator[](u32 i) {
+        if (i >= size) { __debugbreak(); }
         assert(i < size);
         return data[i];
     }
