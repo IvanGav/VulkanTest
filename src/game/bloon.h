@@ -13,11 +13,11 @@ struct Type {
     typedef u16 TypeU;
     TypeU val;
 
-    Type operator|(Type other) { return Type { .val = (TypeU)(this->val | other.val) }; }
-    Type operator&(Type other) { return Type { .val = (TypeU)(this->val & other.val) }; }
-    Type operator-(Type other) { return Type { .val = (TypeU)(this->val & ~other.val) }; } // bitclear
-    bool has_each(Type other) { return (val & other.val) == other.val; }
-    bool has_any(Type other) { return (val & other.val) != (TypeU)(0); }
+    Type operator|(Type other) const { return Type { .val = (TypeU)(this->val | other.val) }; }
+    Type operator&(Type other) const { return Type { .val = (TypeU)(this->val & other.val) }; }
+    Type operator-(Type other) const { return Type { .val = (TypeU)(this->val & ~other.val) }; } // bitclear
+    bool has_each(Type other) const { return (val & other.val) == other.val; }
+    bool has_any(Type other) const { return (val & other.val) != (TypeU)(0); }
 };
 
 struct Proto {
@@ -51,7 +51,6 @@ struct BFT {
         if(family != other.family) { return false; }
         u8 min_layer = min(layer, other.layer);
         u32 mask = u32(first_n_bits_mask(min_layer));
-        std::cout << "    min layer=" << u32(min_layer) << ", mask=" << mask << ", tree1 & mask=" << (tree & mask) << ", tree2 & mask=" << (other.tree & mask) << std::endl;
         return (tree & mask) == (other.tree & mask);
     }
 
@@ -84,7 +83,6 @@ struct BID {
 // represents a Bloon entity
 struct Bloon {
     Vec2 pos;
-    hitbox::Circle min_hb; // minimal hitbox; may be used as initial "likely" hit (and true hit when `proto->hitbox` is `hitbox::Circle`)
     BID bid;
     BFT bft;
     Type type; // type can sometimes change dynamically

@@ -42,7 +42,8 @@ const float screenGamma = 2.2;
 
 void main() {
     vec3 normal = normalize(inNormal);
-    vec3 lightDir = lightPos - inPosition;
+    // vec3 lightDir = lightPos - inPosition; // point light
+    vec3 lightDir = normalize(lightPos) * 6.0; // directional light
     float distance = dot(lightDir, lightDir);
     lightDir = normalize(lightDir);
 

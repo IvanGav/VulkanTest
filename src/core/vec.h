@@ -218,7 +218,7 @@ struct Vec {
     // shallow clone
     Vec<T> clone(mem::Arena* arena = nullptr) {
         if(arena == nullptr) arena = this->arena;
-        if(arena == nullptr) arena = global_arena;
+        if(arena == nullptr) arena = &global_arena;
         Vec<T> cloned {
             .data = arena->alloc<T>(capacity),
             .size = size,

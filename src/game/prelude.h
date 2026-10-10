@@ -8,10 +8,13 @@
 #include "../core/vec.h"
 #include "../core/tinyvec.h"
 
-//mem::Arena global_arena; // never cleared
-//mem::Arena game_arena; // cleared when starting/exiting a game
-//mem::Arena round_arena; // cleared at the end of every round
-//mem::Arena frame_arena; // cleared every frame
+namespace blist { struct BList; }
+namespace plist { struct PList; }
+
+/* global state references */
+
+blist::BList* bloons;
+plist::PList* projs;
 
 u64 first_n_bits_mask(u8 number_of_bits_to_mask) {
     return number_of_bits_to_mask == 64 ? U64_MAX : (u64(1) << number_of_bits_to_mask) - 1;

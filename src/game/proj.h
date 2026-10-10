@@ -44,6 +44,15 @@ struct Buff {
     // for now can't modify lifetime
     // for now can't modify flags
     DamageBonus damage_bonus_add;
+
+    Buff operator+(Buff const& other) const {
+        return Buff{
+            .damage = damage + other.damage,
+            .pierce = pierce + other.pierce,
+            .can_hit_and_pop_type = can_hit_and_pop_type | other.can_hit_and_pop_type,
+            .damage_bonus_add = {}, // TODO
+        };
+    }
 };
 
 // Projectile ID
@@ -66,7 +75,7 @@ struct Projectile {
     Vec2 pos;
     f32 dir;
 
-    static Projectile spawn(Proto* proto, Buff& buff, Vec2 pos, f32 dir) {
+    static Projectile spawn(Proto* proto, Buff const& buff, Vec2 pos, f32 dir) {
         return nproj::Projectile{
             .proto = proto,
             .buff = buff,

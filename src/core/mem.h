@@ -138,8 +138,11 @@ namespace mem {
 
 const u32 SCRATCH_ARENA_NUM = 2;
 u32 cur_scratch_arena = 0;
-mem::Arena global_arena = mem::Arena::create(10 MB);
-mem::Arena scratch_arenas[SCRATCH_ARENA_NUM] = { mem::Arena::create(10 MB), mem::Arena::create(10 MB) };
+mem::Arena global_arena = mem::Arena::create(10 MB); // never cleared
+mem::Arena game_arena = mem::Arena::create(5 MB); // cleared when starting/exiting a "game" (active map changes)
+mem::Arena round_arena = mem::Arena::create(5 MB); // cleared at the end of every round
+mem::Arena frame_arena = mem::Arena::create(1 MB); // cleared every frame
+mem::Arena scratch_arenas[SCRATCH_ARENA_NUM] = { mem::Arena::create(5 MB), mem::Arena::create(5 MB) };
 
 mem::Arena* get_scratch() {
     cur_scratch_arena = (cur_scratch_arena + 1) % SCRATCH_ARENA_NUM;

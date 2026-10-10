@@ -166,6 +166,7 @@
     <ClInclude Include="src\game\plist.h" />
     <ClInclude Include="src\game\prelude.h" />
     <ClInclude Include="src\game\proj.h" />
+    <ClInclude Include="src\game\tower.h" />
     <ClInclude Include="src\graphics\data.h" />
     <ClInclude Include="src\graphics\engine.h" />
     <ClInclude Include="src\graphics\input.h" />
