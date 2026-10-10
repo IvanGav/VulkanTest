@@ -51,16 +51,16 @@ struct HitLedger {
         }
     }
 
-    // return true if can hit `bft` (it/its parent hasn't been hit before)
-    bool can_hit(u32 i, nbloon::BFT bft) {
+    // return true if has hit `bft` (or any parent) before
+    bool has_hit(u32 i, nbloon::BFT bft) {
         while (i != U32_MAX) {
             HitChunk& chunk = pool[i];
             for (u8 iter = 0; iter < chunk.count; iter++) {
-                if (bft.same_subtree_as(chunk.hit_bloons[iter])) { return false; }
+                if (bft.same_subtree_as(chunk.hit_bloons[iter])) { return true; }
             }
             i = chunk.next_chunk_i;
         }
-        return true;
+        return false;
     }
 };
 
@@ -146,8 +146,8 @@ struct PList {
     void record_hit(u32 i, nbloon::BFT bft) {
         list[i].hit_bloons_i = hits.record_hit(list[i].hit_bloons_i, bft);
     }
-    bool can_hit(u32 i, nbloon::BFT bft) {
-        return hits.can_hit(list[i].hit_bloons_i, bft);
+    bool has_hit(u32 i, nbloon::BFT bft) {
+        return hits.has_hit(list[i].hit_bloons_i, bft);
     }
     
 	/* STL Compatibility */

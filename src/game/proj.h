@@ -63,7 +63,6 @@ struct Buff {
 //};
 
 struct Projectile {
-    //PID pid;
     Proto* proto;
     Buff buff;
     u32 hit_bloons_i; // index of the chunk in `plist::HitLedger`

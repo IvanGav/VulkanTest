@@ -18,12 +18,10 @@ struct {
     engine::MeshRef testQuad;
 } meshes;
 
-bool doLogFps = true;
+f64 logAt = 1.0;
 void logFps() {
-    if (!doLogFps) { return; }
-    static f32 logAt = 1.0f;
     if (data::time >= logAt) {
-        std::cout << "fps: " << data::fps << std::endl;
+        std::cout << "fps: " << data::fps << ", ups: " << data::ups << std::endl;
         logAt = data::time + 1.0;
     }
 }
@@ -37,7 +35,7 @@ struct Cam {
     f32 viewWidth; // for orthographic
     bool orthographic;
 
-    glm::mat4 projMat() {
+    glm::mat4 projMat() const {
         f32 aspect = f32(data::framebufferWidth) / f32(data::framebufferHeight);
         glm::mat4 proj = orthographic ? 
             glm::ortho(-viewWidth, viewWidth, -viewWidth / aspect, viewWidth / aspect, 0.1f, 1000.0f) :
@@ -45,22 +43,91 @@ struct Cam {
         proj[1][1] *= -1;
         return proj;
     }
-    glm::mat4 viewMat() {
+    glm::mat4 viewMat() const {
         return glm::lookAt(pos, pos + dirLook(), dirUp());
     }
-    glm::vec3 dirLook() {
+    glm::vec3 dirLook() const {
         return glm::normalize(glm::vec3(cos(yaw) * cos(pitch), sin(yaw) * cos(pitch), sin(pitch)));
     }
-    glm::vec3 dirForward() {
+    glm::vec3 dirForward() const {
         return glm::normalize(glm::vec3(cos(yaw), sin(yaw), 0.0f));
     }
-    glm::vec3 dirRight() {
+    glm::vec3 dirRight() const {
         return -glm::normalize(glm::cross(dirForward(), dirUp()));
     }
-    glm::vec3 dirUp() {
+    glm::vec3 dirUp() const {
         return glm::vec3(0.0f, 0.0f, 1.0f);
     }
 };
+
+Vec<nbloon::Proto> bloonProtos;
+Vec<nproj::Proto> projProtos;
+Vec<nattack::Proto*> attackProtos;
+Vec<ntower::Proto> towerProtos;
+npath::Path path;
+Vec<ntower::Tower> towers;
+void initTestPrototypes() {
+    /* create projectile protos */
+    projProtos.push(nproj::Proto{
+        .damage = 1,
+        .pierce = 3,
+        .move = nmove::Move{
+            .type = nmove::Type::MoveSimple,
+            .move_simple = nmove::MoveSimple{.speed = 0.2 }
+        },
+        .hitbox = hitbox::HB{
+            .type = hitbox::Type::Circle,
+            .circle = hitbox::Circle{.r = 0.5 }
+        },
+        .lifetime_ticks = 100
+        });
+    /* create bloon protos */
+    bloonProtos.push(nbloon::Proto{
+        .hp = 1,
+        .type = 0,
+        .speed = 0.1,
+        .children = {.data = nullptr, .size = 0 },
+        .hitbox = hitbox::HB{.type = hitbox::Type::Circle, .circle = hitbox::Circle{.r = 0.5}},
+        .max_hitbox_dist = 0.5,
+        .speed_status_immune = false
+        });
+    bloonProtos.push(nbloon::Proto{
+        .hp = 2,
+        .type = 1,
+        .speed = 0.2,
+        .children = {.data = &bloonProtos.data, .size = 1 },
+        .hitbox = hitbox::HB{.type = hitbox::Type::Circle, .circle = hitbox::Circle{.r = 0.5}},
+        .max_hitbox_dist = 0.5,
+        .speed_status_immune = false
+        });
+    nbloon::Proto** b2children = global_arena.alloc<nbloon::Proto*>(3);
+    b2children[0] = &bloonProtos[0];
+    b2children[1] = &bloonProtos[0];
+    b2children[2] = &bloonProtos[1];
+    bloonProtos.push(nbloon::Proto{
+        .hp = 1,
+        .type = 1,
+        .speed = 0.05,
+        .children = {.data = b2children, .size = 3 },
+        .hitbox = hitbox::HB{.type = hitbox::Type::Circle, .circle = hitbox::Circle{.r = 0.5}},
+        .max_hitbox_dist = 0.5,
+        .speed_status_immune = false
+        });
+    /* create attack protos */
+    nattack::PSimple* simpleAttack1 = global_arena.alloc<nattack::PSimple>(1);
+    new (simpleAttack1) nattack::PSimple(6.0f, 140, 1, 0.0f, &projProtos[0]);
+    attackProtos.push(simpleAttack1);
+    /* create tower protos */
+    towerProtos.push(ntower::Proto{
+        .attacks = {.data = attackProtos.data, .size = 1 },
+        .target_modes = {.data = global_arena.push(nattack::TargetMode::CloseBloon), .size = 1 },
+        });
+    /* other global state initialization */
+    path = npath::Path{ .nodes = Vec<Vec2>::with(&global_arena, Vec2{ -5.0, -5.0 }, Vec2{ 5.0, 5.0 }, Vec2{ -5.0, 6.0 }), .cumulative_dist = Vec<f32>::with(&global_arena, 0.0f, 14.1421356237f, 24.1920112448f) };
+    bloons = global_arena.push(blist::BList::create());
+    projs = global_arena.push(plist::PList::create());
+    towers = Vec<ntower::Tower>{ .arena = &game_arena };
+}
 
 const u32 animationLength = 50;
 glm::mat4 getAnimationModelMatrix(u32 animationStartTick, f32 x, f32 y, f32 dir) {
@@ -116,6 +183,22 @@ void handleInput(Cam& c) {
     if (input::keyPressed(GLFW_KEY_Q)) {
         c.orthographic = !c.orthographic;
     }
+    /* gameplay related inputs */
+    if (input::keyPressed(GLFW_KEY_1)) {
+        projs->add(nproj::Projectile::spawn(&projProtos[0], ref(nproj::Buff{}), { c.pos.x, c.pos.y }, c.yaw));
+    }
+    if (input::keyPressed(GLFW_KEY_2)) {
+        towers.push(ntower::Tower::spawn(&towerProtos[0], { c.pos.x, c.pos.y }));
+    }
+    if (input::keyPressed(GLFW_KEY_3)) {
+        bloons->add(nbloon::Bloon::spawn(&bloonProtos[0], &path));
+    }
+    if (input::keyPressed(GLFW_KEY_4)) {
+        bloons->add(nbloon::Bloon::spawn(&bloonProtos[1], &path));
+    }
+    if (input::keyPressed(GLFW_KEY_5)) {
+        bloons->add(nbloon::Bloon::spawn(&bloonProtos[2], &path));
+    }
 }
 
 void captureReleaseMouse() {
@@ -129,73 +212,63 @@ void captureReleaseMouse() {
     }
 }
 
-Vec<nbloon::Proto> bloonProtos;
-Vec<nproj::Proto> projProtos;
-Vec<nattack::Proto*> attackProtos;
-Vec<ntower::Proto> towerProtos;
-npath::Path path;
-Vec<ntower::Tower> towers;
-void initTestPrototypes() {
-    /* create projectile protos */
-    projProtos.push(nproj::Proto{
-        .damage = 1,
-        .pierce = 3,
-        .move = nmove::Move{
-            .type = nmove::Type::MoveSimple,
-            .move_simple = nmove::MoveSimple{ .speed = 0.2 }
-        },
-        .hitbox = hitbox::HB{
-            .type = hitbox::Type::Circle,
-            .circle = hitbox::Circle{ .r = 0.5 }
-        },
-        .lifetime_ticks = 100
-    });
-    /* create bloon protos */
-    bloonProtos.push(nbloon::Proto{
-        .hp = 1,
-        .type = 0,
-        .speed = 0.1,
-        .children = {.data = nullptr, .size = 0 },
-        .hitbox = hitbox::HB{.type = hitbox::Type::Circle, .circle = hitbox::Circle{.r = 0.5}},
-        .max_hitbox_dist = 0.5,
-        .speed_status_immune = false
-    });
-    bloonProtos.push(nbloon::Proto{
-        .hp = 2,
-        .type = 1,
-        .speed = 0.2,
-        .children = { .data = &bloonProtos.data, .size = 1 },
-        .hitbox = hitbox::HB{.type = hitbox::Type::Circle, .circle = hitbox::Circle{.r = 0.5}},
-        .max_hitbox_dist = 0.5,
-        .speed_status_immune = false
-    });
-    nbloon::Proto** b2children = global_arena.alloc<nbloon::Proto*>(3);
-    b2children[0] = &bloonProtos[0];
-    b2children[1] = &bloonProtos[0];
-    b2children[2] = &bloonProtos[1];
-    bloonProtos.push(nbloon::Proto{
-        .hp = 1,
-        .type = 1,
-        .speed = 0.05,
-        .children = { .data = b2children, .size = 3 },
-        .hitbox = hitbox::HB{.type = hitbox::Type::Circle, .circle = hitbox::Circle{.r = 0.5}},
-        .max_hitbox_dist = 0.5,
-        .speed_status_immune = false
-        });
-    /* create attack protos */
-    nattack::PSimple* simpleAttack1 = global_arena.alloc<nattack::PSimple>(1);
-    new (simpleAttack1) nattack::PSimple(6.0f, 140, 1, 0.0f, &projProtos[0]);
-    attackProtos.push(simpleAttack1);
-    /* create tower protos */
-    towerProtos.push(ntower::Proto{
-        .attacks = { .data = attackProtos.data, .size = 1 },
-        .target_modes = { .data = global_arena.push(nattack::TargetMode::CloseBloon), .size = 1 },
-    });
-    /* other global state initialization */
-    path = npath::Path{ .nodes = Vec<Vec2>::with(&global_arena, Vec2{ -5.0, -5.0 }, Vec2{ 5.0, 5.0 }, Vec2{ -5.0, 6.0 }), .cumulative_dist = Vec<f32>::with(&global_arena, 0.0f, 14.1421356237f, 24.1920112448f) };
-    bloons = global_arena.push(blist::BList::create());
-    projs = global_arena.push(plist::PList::create());
-    towers = Vec<ntower::Tower>{ .arena = &game_arena };
+void frameTick(Cam const& c) {
+    engine::ShaderUniformData uniformData = {
+        .proj = c.projMat(),
+        .view = c.viewMat(),
+        .camPosition = c.pos
+    };
+    Vec<engine::ShaderInstanceData> instanceData{ .arena = &frame_arena }; instanceData.reserve(1 + bloons->bloons.size + projs->list.size + towers.size);
+    instanceData.push({ .model = glm::rotate(glm::scale(glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 0.0f, -2.0f)), glm::vec3(20.0f, 20.0f, 1.0f)), glm::radians(270.0f), glm::vec3(0.0f, 1.0f, 0.0f)), .texture = textures.ground });
+    for (nbloon::Bloon& bloon : *bloons) {
+        instanceData.push({
+            .model = glm::rotate(glm::rotate(glm::translate(glm::mat4(1.0f), glm::vec3(bloon.pos.x, bloon.pos.y, 0.0f)), glm::radians(270.0f), glm::vec3(0.0f, 1.0f, 0.0f)), bloon.dir, glm::vec3(1.0f, 0.0f, 0.0f)),
+            .texture = (bloon.type.has_any({1}) ? textures.triangle : textures.kyaru)
+            });
+    }
+    for (nproj::Projectile& proj : *projs) {
+        instanceData.push({
+            .model = glm::rotate(glm::rotate(glm::translate(glm::mat4(1.0f), glm::vec3(proj.pos.x, proj.pos.y, 0.0f)), glm::radians(270.0f), glm::vec3(0.0f, 1.0f, 0.0f)), proj.dir, glm::vec3(1.0f, 0.0f, 0.0f)),
+            .texture = textures.projectile
+            });
+    }
+    for (ntower::Tower& tower : towers) {
+        instanceData.push({
+            .model = getAnimationModelMatrix(tower.attacked_on, tower.pos.x, tower.pos.y, tower.dir),
+            .texture = textures.monke
+            });
+    }
+    engine::startDraw(uniformData, { .data = instanceData.data, .size = instanceData.size });
+    engine::drawMesh(meshes.testQuad, 1 /* ground */ + bloons->bloons.size + projs->list.size);
+    engine::drawMesh(meshes.monke, towers.size);
+    engine::endDraw();
+}
+
+void updateTick() {
+    for (nbloon::Bloon& bloon : bloons->bloons) bloon.move();
+    for (nproj::Projectile& proj : projs->list) proj.move();
+    for (ntower::Tower& tower : towers) tower.tick();
+    Vec<nbloon::BID> poppedBloons{ .arena = &frame_arena }; poppedBloons.reserve(255);
+    for (nbloon::Bloon& bloon : *bloons) {
+        for (u32 pi = 0; pi < projs->list.size; pi++) {
+            nproj::Projectile& proj = projs->list[pi];
+            if (proj.pierce > 0 && bloon.proto->hitbox.intersect(&proj.proto->hitbox, bloon.pos, proj.pos, bloon.dir, proj.dir) && !projs->has_hit(pi, bloon.bft)) {
+                u32 oldHp = bloon.hp;
+                bloon.hp -= proj.proto->damage;
+                proj.pierce -= 1;
+                projs->record_hit(pi, bloon.bft);
+                if (bloon.hp <= 0 && oldHp > 0) { poppedBloons.push(bloon.bid); }
+            }
+        }
+    }
+    for (nbloon::BID bid : poppedBloons) {
+        bloons->pop(bid);
+    }
+    for (u32 i = 0; i < projs->list.size; i++) {
+        if (projs->list[i].pierce == 0 || projs->list[i].lifetime_ticks == 0) {
+            projs->del(i); i--;
+        }
+    }
 }
 
 int main() {
@@ -216,88 +289,17 @@ int main() {
     initTestPrototypes();
     Cam c = { .pos = glm::vec3(-5.0f, 0.0f, 1.0f), .pitch = 0, .yaw = 0, .fov = glm::radians(45.0f), .viewWidth = 10.0f, .orthographic = false };
     while (!glfwWindowShouldClose(engine::window)) {
+        frame_arena.reset();
         data::frameTick();
         input::frameTick();
         captureReleaseMouse();
         handleInput(c);
-        engine::ShaderUniformData uniformData = {
-                .proj = c.projMat(),
-                .view = c.viewMat(),
-                .camPosition = c.pos
-        };
-        std::vector<engine::ShaderInstanceData> instanceData{
-            { .model = glm::rotate(glm::scale(glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 0.0f, -2.0f)), glm::vec3(20.0f, 20.0f, 1.0f)), glm::radians(270.0f), glm::vec3(0.0f, 1.0f, 0.0f)), .texture = textures.ground }
-        };
-        for (nbloon::Bloon& bloon : *bloons) {
-            instanceData.push_back({
-                .model = glm::rotate(glm::rotate(glm::translate(glm::mat4(1.0f), glm::vec3(bloon.pos.x, bloon.pos.y, 0.0f)), glm::radians(270.0f), glm::vec3(0.0f, 1.0f, 0.0f)), bloon.dir, glm::vec3(1.0f, 0.0f, 0.0f)),
-                .texture = (bloon.type.has_any({1}) ? textures.triangle : textures.kyaru)
-            });
+        frameTick(c);
+        if (data::timeSinceLastUpdate() >= (1.0 / data::TARGET_UPS)) {
+            updateTick();
+            data::updateTick();
         }
-        for (nproj::Projectile& proj: *projs) {
-            instanceData.push_back({
-                .model = glm::rotate(glm::rotate(glm::translate(glm::mat4(1.0f), glm::vec3(proj.pos.x, proj.pos.y, 0.0f)), glm::radians(270.0f), glm::vec3(0.0f, 1.0f, 0.0f)), proj.dir, glm::vec3(1.0f, 0.0f, 0.0f)),
-                .texture = textures.projectile
-            });
-        }
-        for (ntower::Tower& tower : towers) {
-            instanceData.push_back({
-                //.model = glm::rotate(glm::translate(glm::mat4(1.0f), glm::vec3(tower.pos.x, tower.pos.y, 0.0f)), tower.dir + glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f)),
-                .model = getAnimationModelMatrix(tower.attacked_on, tower.pos.x, tower.pos.y, tower.dir),
-                .texture = textures.monke
-            });
-        }
-        engine::startDraw(uniformData, { .data = instanceData.data(), .size = (u32)(instanceData.size())});
-        engine::drawMesh(meshes.testQuad, 1 /* ground */ + bloons->bloons.size + projs->list.size);
-        engine::drawMesh(meshes.monke, towers.size);
-        engine::endDraw();
         logFps();
-        if (input::keyPressed(GLFW_KEY_1)) {
-            projs->add(nproj::Projectile::spawn(&projProtos[0], ref(nproj::Buff{}), { c.pos.x, c.pos.y }, c.yaw));
-        }
-        if (input::keyPressed(GLFW_KEY_2)) {
-            towers.push(ntower::Tower::spawn(&towerProtos[0], { c.pos.x, c.pos.y }));
-        }
-        if (input::keyPressed(GLFW_KEY_3)) {
-            bloons->add(nbloon::Bloon::spawn(&bloonProtos[0], &path));
-        }
-        if (input::keyPressed(GLFW_KEY_4)) {
-            bloons->add(nbloon::Bloon::spawn(&bloonProtos[1], &path));
-        }
-        if (input::keyPressed(GLFW_KEY_5)) {
-            bloons->add(nbloon::Bloon::spawn(&bloonProtos[2], &path));
-        }
-        if (input::keyUp(GLFW_KEY_Z)) {
-            for (nbloon::Bloon& bloon : bloons->bloons)
-                bloon.move();
-        }
-        if (input::keyUp(GLFW_KEY_X)) {
-            for (nproj::Projectile& proj : projs->list)
-                proj.move();
-            for (ntower::Tower& tower : towers)
-                tower.tick();
-        }
-        std::vector<nbloon::BID> poppedBloons; poppedBloons.reserve(64);
-        for (nbloon::Bloon& bloon : *bloons) {
-            for (u32 pi = 0; pi < projs->list.size; pi++) {
-                nproj::Projectile& proj = projs->list[pi];
-                if (proj.pierce > 0 && bloon.proto->hitbox.intersect(&proj.proto->hitbox, bloon.pos, proj.pos, bloon.dir, proj.dir) && projs->can_hit(pi, bloon.bft)) {
-                    u32 oldHp = bloon.hp;
-                    bloon.hp -= proj.proto->damage;
-                    proj.pierce -= 1;
-                    projs->record_hit(pi, bloon.bft);
-                    if (bloon.hp <= 0 && oldHp > 0) { poppedBloons.push_back(bloon.bid); }
-                }
-            }
-        }
-        for (nbloon::BID bid : poppedBloons) {
-            bloons->pop(bid);
-        }
-        for (u32 i = 0; i < projs->list.size; i++) {
-            if (projs->list[i].pierce == 0 || projs->list[i].lifetime_ticks == 0) {
-                projs->del(i); i--;
-            }
-        }
     }
 	engine::cleanup();
 }
