@@ -75,6 +75,7 @@ struct Projectile {
     f32 dir;
 
     static Projectile spawn(Proto* proto, Buff const& buff, Vec2 pos, f32 dir) {
+        // TODO apply buff
         return nproj::Projectile{
             .proto = proto,
             .buff = buff,
@@ -89,6 +90,18 @@ struct Projectile {
     void move() {
         lifetime_ticks -= 1;
         movement.move(pos, dir);
+    }
+
+    // return true if able to interact with this bloon type
+    bool can_hit(nbloon::Type bt) {
+        // TODO apply buff
+        return !proto->cannot_hit_type.has_any(bt);
+    }
+
+    // return true if able to pop this bloon type
+    bool can_pop(nbloon::Type bt) {
+        // TODO apply buff
+        return !proto->cannot_pop_type.has_any(bt);
     }
 };
 

@@ -86,6 +86,9 @@
     <ClInclude Include="src\game\tower.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="src\game\logic.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include=".gitignore" />

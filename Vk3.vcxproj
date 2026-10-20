@@ -161,6 +161,7 @@
     <ClInclude Include="src\game\blist.h" />
     <ClInclude Include="src\game\bloon.h" />
     <ClInclude Include="src\game\hitbox.h" />
+    <ClInclude Include="src\game\logic.h" />
     <ClInclude Include="src\game\move.h" />
     <ClInclude Include="src\game\path.h" />
     <ClInclude Include="src\game\plist.h" />
