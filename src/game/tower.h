@@ -6,6 +6,7 @@
 namespace ntower {
 
     struct Proto {
+        u32 tower_type;
         Slice<nattack::Proto*> attacks;
         Slice<nattack::TargetMode> target_modes;
     };
@@ -19,6 +20,8 @@ namespace ntower {
         Vec<nproj::Buff> buffs;
 
         u32 attacked_on;
+
+        u32 undead_bloons;
 
         static Tower spawn(Proto* proto, Vec2 pos) {
             Vec<nattack::Attack> attacks{ .arena = &game_arena };

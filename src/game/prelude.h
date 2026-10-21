@@ -10,11 +10,15 @@
 
 namespace blist { struct BList; }
 namespace plist { struct PList; }
+namespace nbloon { struct Bloon; }
+namespace nattack { struct Attack; }
 
 /* global state references */
 
 blist::BList* bloons;
 plist::PList* projs;
+Vec<nbloon::Bloon> bb;
+Vec<nattack::Attack> aa;
 
 u64 first_n_bits_mask(u8 number_of_bits_to_mask) {
     return number_of_bits_to_mask == 64 ? U64_MAX : (u64(1) << number_of_bits_to_mask) - 1;

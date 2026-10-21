@@ -54,7 +54,7 @@ struct PSimple : Proto {
     };
 };
 
-//// spawns a projectile that travels along path
+// spawns a projectile that travels along path
 //struct PAlongPath : Proto {
 //    f32 range;
 //    u32 cooldown_ticks;
