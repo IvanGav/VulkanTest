@@ -403,7 +403,7 @@ void createDevice(VkPhysicalDevice physicalDevice) {
         .pEnabledFeatures = &enabledVk10Features
     };
     VkResult result = vkCreateDevice(physicalDevice, &deviceCI, nullptr, &device);
-    if (result != VK_SUCCESS) { err("Could not create logical device", result); }
+    if (result != VK_SUCCESS) { err("Could not create logical device", string_VkResult(result)); }
     vkGetDeviceQueue(device, queueFamily, 0, &graphicsQueue);
     vkGetDeviceQueue(device, queueFamily, 0, &presentQueue);
 }
@@ -841,7 +841,7 @@ MeshRef loadMeshObj(const char* path) {
     std::vector<tinyobj::shape_t> shapes;
     std::vector<tinyobj::material_t> materials;
     {
-        bool result = tinyobj::LoadObj(&attrib, &shapes, &materials, nullptr, nullptr, path);
+        bool result = tinyobj::LoadObj(&attrib, &shapes, &materials, nullptr, path);
         if (!result) { err("Could not load obj"); }
     }
 

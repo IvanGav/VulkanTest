@@ -3,6 +3,7 @@
 #include "prelude.h"
 #include "hitbox.h"
 #include "move.h"
+#include "global.h"
 
 namespace nbloon {
 
@@ -56,7 +57,7 @@ struct BFT {
 
     // Given that this FT will produce `child_count` children total, get `child_num` child's FT
     // `child_num` is 0-indexed
-    BFT get_child(u8 child_count, u8 child_num) {
+    BFT get_child(u8 child_count, u8 child_num) const {
         assert(child_num < child_count);
         BFT child = *this; // clone self
         if(child_count == 1) {
@@ -73,17 +74,17 @@ struct BFT {
     }
 };
 
-// Bloon ID
-// Bevy's "Entity" equivalent; Used to index into "Slot Map" `BList` (declared in `blist.h`)
-struct BID {
-    u32 i;
-    u32 gen;
-};
+//// Bloon ID
+//// Bevy's "Entity" equivalent; Used to index into "Slot Map" `BList` (declared in `blist.h`)
+//struct BID {
+//    u32 i;
+//    u32 gen;
+//};
 
 // represents a Bloon entity
 struct Bloon {
     Vec2 pos;
-    BID bid;
+    BID id;
     BFT bft;
     Type type; // type can sometimes change dynamically
     f32 dir;
@@ -104,7 +105,7 @@ struct Bloon {
     }
 
     // `child_num` is 0-indexed
-    Bloon get_child(u32 child_num) {
+    Bloon get_child(u32 child_num) const {
         assert(child_num < proto->children.size);
         Proto* child_proto = proto->children[child_num];
         Bloon child = Bloon {
@@ -121,10 +122,10 @@ struct Bloon {
         return child;
     }
 
-    u32 num_children() { return proto->children.size; }
-    bool is_dead() { return hp <= 0; }
+    u32 num_children() const { return proto->children.size; }
     void move() { movement.move(pos, dir); }
-    bool is_exited() { return movement.is_exited(); }
+    bool is_exited() const { return movement.is_exited(); }
+    bool is_dead() const { return hp <= 0; }
 };
 
 };

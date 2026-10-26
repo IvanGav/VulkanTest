@@ -8,53 +8,54 @@ namespace blist {
 // https://www.youtube.com/watch?v=SHaAR7XPtNU
 // Dense Slot Map datastructure
 struct BList {
-	Vec<nbloon::Bloon> bloons;
-	Vec<nbloon::BID> slots;
+	Vec<nbloon::Bloon> list;
+	Vec<BID> slots;
 	u32 free_head; // U32_MAX means no free list
 
 	static BList create() {
 		return BList{ 
-			.bloons = Vec<nbloon::Bloon>::with_capacity(&global_arena, 5000),
-			.slots = Vec<nbloon::BID>::with_capacity(&global_arena, 5000),
+			.list = Vec<nbloon::Bloon>::with_capacity(&global_arena, 5000),
+			.slots = Vec<BID>::with_capacity(&global_arena, 5000),
 			.free_head = U32_MAX
 		};
 	}
 
-	void clear() { bloons.clear(); slots.clear(); free_head = U32_MAX; }
+	void clear() { list.clear(); slots.clear(); free_head = U32_MAX; }
 
 	// Returned pointers are valid **only** before queued commands are applied (end of each frame)
-    nbloon::Bloon* find(nbloon::BID bid) {
-		nbloon::BID slot = slots[bid.i];
+    nbloon::Bloon* find(BID bid) {
+		BID slot = slots[bid.i];
 		if(slot.gen != bid.gen) return nullptr; // the requested bloon does not exist
-		return &bloons[slot.i];
+		return &list[slot.i];
 	}
 	// Add a new bloon and return its assigned BID
-    nbloon::BID add(nbloon::Bloon b) {
+    BID add(nbloon::Bloon b) {
 		if(free_head == U32_MAX) {
-			nbloon::BID bid = nbloon::BID{ .i = slots.size, .gen = 1 };
-			b.bid = bid;
+			BID bid = BID{ .i = slots.size, .gen = 1 };
+			b.id = bid;
 			slots.push(bid);
-			bloons.push(b);
+			list.push(b);
 			return bid;
 		} else {
 			u32 free_slot = free_head;
 			free_head = slots[free_head].i; // advance free list head
-			slots[free_slot].i = bloons.size; // we will push the new bloon to `bloons`
-			nbloon::BID bid = nbloon::BID{.i = free_slot, .gen = slots[free_slot].gen };
-			b.bid = bid;
-			bloons.push(b);
+			slots[free_slot].i = list.size; // we will push the new bloon to `bloons`
+			BID bid = BID{.i = free_slot, .gen = slots[free_slot].gen };
+			b.id = bid;
+			list.push(b);
 			return bid;
 		}
 	}
 	// Delete the specified bloon and invalidate this BID. Return false if `bid` doesn't exist
-    bool del(nbloon::BID bid) {
-		nbloon::BID slot = slots[bid.i];
+	// Does not handle game logic
+    bool del(BID bid) {
+		BID slot = slots[bid.i];
 		if(slot.gen != bid.gen) return false; // outdated generation
-		if(slot.i == bloons.size-1) {
-			bloons.pop();
+		if(slot.i == list.size-1) {
+			list.pop();
 		} else {
-			bloons.remove_swap(slot.i);
-			nbloon::BID update_bid = bloons[slot.i].bid;
+			list.remove_swap(slot.i);
+			BID update_bid = list[slot.i].id;
 			slots[update_bid.i].i = slot.i; // update the slot to point to the new location of this bloon
 		}
 		slots[bid.i].gen += 1; // invalidate old bid's to this bloon
@@ -63,19 +64,10 @@ struct BList {
 		free_head = bid.i;
 		return true;
 	}
-	// will delete bloon `bid`
-	void pop(nbloon::BID bid) {
-		nbloon::Bloon* bloon = this->find(bid);
-		if (bloon == nullptr) { warn("tried popping a deleted bloon"); return; }
-		for (u32 i = 0; i < bloon->num_children(); i++) {
-			this->add(bloon->get_child(i));
-		}
-		this->del(bid);
-	}
 
 	/* STL Compatibility */
-    nbloon::Bloon* begin() { return bloons.begin(); }
-    nbloon::Bloon* end() { return bloons.end(); }
+    nbloon::Bloon* begin() { return list.begin(); }
+    nbloon::Bloon* end() { return list.end(); }
 };
 
 }

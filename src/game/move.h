@@ -100,7 +100,7 @@ struct MoveAlongRoad {
         }
     }
 
-    bool is_exited() { return waypoint == Vec2 { .x = F32_INF, .y = F32_INF }; }
+    bool is_exited() const { return waypoint == Vec2 { .x = F32_INF, .y = F32_INF }; }
 };
 
 // A movement component that lets an entity to rapidly move to a specified location and stay stationary after that

@@ -7,18 +7,31 @@
 #include "../core/pair.h"
 #include "../core/vec.h"
 #include "../core/tinyvec.h"
+#include "../graphics/data.h"
+
+namespace nbloon { struct Proto; struct Bloon; }
+namespace nproj { struct Proto; struct Projectile; }
+namespace nattack { struct Proto; struct Attack; }
+namespace ntower { struct Proto; struct Tower; }
 
 namespace blist { struct BList; }
 namespace plist { struct PList; }
-namespace nbloon { struct Bloon; }
-namespace nattack { struct Attack; }
+namespace tlist { struct TList; }
 
-/* global state references */
+// Generational ID - Bevy's "Entity" equivalent
+// Null ID is just {.i=0,.gen=0}
+// TODO ensure that this is still POD
+template <typename T>
+struct GID {
+    u32 i;
+    u32 gen;
+    auto operator<=>(GID<T> const&) const = default;
+};
 
-blist::BList* bloons;
-plist::PList* projs;
-Vec<nbloon::Bloon> bb;
-Vec<nattack::Attack> aa;
+// Specializations for the Generational IDs
+typedef GID<nbloon::Bloon> BID;
+typedef GID<nproj::Projectile> PID;
+typedef GID<ntower::Tower> TID;
 
 u64 first_n_bits_mask(u8 number_of_bits_to_mask) {
     return number_of_bits_to_mask == 64 ? U64_MAX : (u64(1) << number_of_bits_to_mask) - 1;

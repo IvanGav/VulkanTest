@@ -4,7 +4,7 @@ dart monkey
 - crossbow master
 
 boomerang monkey
-- bouncing boomerangs (change target on hit)
+- bouncing boomerangs
 - robo boomer
 - kyle (weird movement)
 
@@ -30,10 +30,10 @@ glue gunner
 
 ___
 
-sniper monkey
-- cripple moab (insta hit attack)
-- delivery + ricochet (redirect on bloon hit + shapnel on projectile death; additional target modes based on monkey present)
-- full auto (ability trigger on life lost; faster speed on bloon closest to front)
+sniper monkey (insta hit attack)
+- cripple moab
+- delivery + ricochet (additional target modes based on monkey present)
+- full auto (faster speed on bloon closest to front)
 
 monkey sub (water)
 - reactor/radar (target mode entirely changes animation and attack; can target bloon in any monkey's range)
@@ -43,7 +43,7 @@ monkey sub (water)
 monkey buccaneer (water)
 - destroyer/fleet (provide standing spots for new monkeys)
 - pirate lord
-- trade empire (on round end give money/generic behavior)
+- trade empire
 
 monkey ace (subtower that moves only during rounds)
 - lots of darts
@@ -84,7 +84,7 @@ alchemist monkey
 
 druid monkey
 - avatar of wrath
-- a
+- thunder druid (projectile that bounces from screen borders)
 - jungle of the druid
 
 mermonkey (water/land)
@@ -140,14 +140,16 @@ Common spcial needs:
 - Visual effects on bloon buffs
 - Bloon buffs should define how they behave (stay, removed) on bloon pop. Behavior may be different between bloons and blimps
 - Subtowers may look up and follow the main tower's target mode
+- Projectile changes target on hit
+- Check position along track of first/farthest bloon
 
 ___
 
 Normal monkey counters:
 - Pop count - statistic
+- Additional money made (on money making monkeys) - statistic, fairly common
 
 Special monkey counters:
-- Additional money made (on money making monkeys) - statistic
 - Sun god sacrifices (manually set by external function calls and does pretty much nothing otherwise) - misc, one off
 - Undead power + max undead power (aka number of bloons who died in range; only count for necromancers) - for attacks
 - Shots fired (crit) counter - for attacks
@@ -172,6 +174,7 @@ More notes:
 - Depending on how I decide to make zombie bloons work, I may need to introduce a new way of damaging bloons - 1 pierce = 1 damage, spend as much pierce as needed to bring down to 0 hp. Although that sounds too strong, so maybe just make it work like the spikes.
 - I will sometimes (necromancer, wall of fire, etc) need a "special target" to target a secondary attack. Sometimes it'll need to be targetable anywhere, sometimes only path. Or just take closest path, but either way I'll need to *store* the path sometimes for optimization. It can also (sometimes?) be "unset" to use default behavior.
 - I don't know if I should hardcode the 5-2-0 of 5-5-5 upgrade system. Because it *could* be cool to have it non-fully-hardcoded. But at the same time it would be much simpler if it *was* hardcoded. The easiest solution that gets best of both worlds is just having a handler function for 5-2-0 of 5-5-5 and having an if statement checking what upgrade schema the given tower has.
+- As much as I'd like to, I should never rely on raw pointer comparison for equality. When saving/loading state, it'd be *easiest* if I didn't have to restore the exact memory state up to raw pointer equivalence. So the only case where it may be ok is comparing `Proto`s, since those may be looked up and reverse looked up by their key. And that's not even that useful anyway. After that, I need a function to load every kind of runtime object (non-`Proto`s, of course). And then a loop over all game structures to serialize in order, and then deserialize in order.
 
 ___
 
@@ -190,3 +193,12 @@ Special events (when you can easily run arbitrary code with exclusive world acce
 - Sell monkey
 - Use ability (some of them are kind of crazy)
 - Bloon pop? (necromancer)
+- Round start
+- Round end
+
+___
+
+Yapping:
+- Interesting problem when I need to call `before_bloon_exited` and `after_bloon_exited` event handlers. Some of them may (and usually will) damage literally all bloons on the screen. So I'll need to continue handling all non-exited bloons to apply overkill and stuff from this tick. And then, I'll need to apply the events and THEN I'll need to go over all bloons again, since any amount of bloons may have been damaged/popped. I specifically do *not* need to apply any other `updateTick` stages, only the "pop bloons" stage, iteratively, until no event handlers have been called.
+- There's also a chance that having the Necromancer undead power and shots fired for Crits is better as part of an attack. Since it's inhenently the data that's used for an *attack*. Which turns my attacks from a lightweight `usize+u32` into either a polymorphic type (not happening) or a megastruct. Which is not horrible, but a bit annoying..
+- Overkilling bloons is actually deceivingly hard. You have to calculate a list of all children in one go, spawn them in a single line (aka iteratively popping and pushing on track is insufficient). But you also should apply the effects and calculate the true health instead of using the base health (unless that's what I want to have?).

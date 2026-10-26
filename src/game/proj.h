@@ -6,18 +6,21 @@
 namespace nproj {
 
 // careful; owned data
-struct DamageBonus {
-    TinyVec<P<nbloon::Type,u32>, 4> bonus;
-};
+//struct DamageBonus {
+//    TinyVec<P<nbloon::Type,u32>, 4> bonus;
+//};
+
+typedef u8 Flags;
 
 enum class FlagsBit {
     OverkillBlimp = 1, // if true, can overkill blimps
-    CannotReceiveEffects = 2, // if true, buff effects will not apply
-    CannotReceiveLifetimeEffects = 4, // if true, buff lifetime effects will not apply
-};
-
-struct Flags {
-    u8 flags;
+    SkipRecordHits = 2, // if true, will not record hit bloons (aka can hit same bloon every tick)
+    CannotReceiveEffects = 4, // if true, buff effects will not apply
+    CannotReceiveLifetimeEffects = 8, // if true, buff lifetime effects will not apply
+    Unused16 = 16,
+    Unused32 = 32,
+    Unused64 = 64,
+    Unused128 = 128,
 };
 
 struct Proto {
@@ -31,7 +34,7 @@ struct Proto {
     Flags flags;
 
     Proto* on_death_spawn_projectile;
-    DamageBonus damage_bonus_add;
+    //DamageBonus damage_bonus_add;
     // Slice<bloon::Effect> apply_effects;
 };
 
@@ -43,14 +46,14 @@ struct Buff {
     // can never modify hitbox
     // for now can't modify lifetime
     // for now can't modify flags
-    DamageBonus damage_bonus_add;
+    //DamageBonus damage_bonus_add;
 
     Buff operator+(Buff const& other) const {
         return Buff{
             .damage = damage + other.damage,
             .pierce = pierce + other.pierce,
             .can_hit_and_pop_type = can_hit_and_pop_type | other.can_hit_and_pop_type,
-            .damage_bonus_add = {}, // TODO
+            //.damage_bonus_add = {},
         };
     }
 };
@@ -69,6 +72,7 @@ struct Projectile {
     u32 pierce;
     nmove::Move movement;
     u32 lifetime_ticks;
+    TID parent_tower;
 
     // these are what actually defines the projectile on the map;
     Vec2 pos;
@@ -102,6 +106,10 @@ struct Projectile {
     bool can_pop(nbloon::Type bt) {
         // TODO apply buff
         return !proto->cannot_pop_type.has_any(bt);
+    }
+
+    bool has_flag(FlagsBit bit) {
+        return proto->flags & (Flags) bit;
     }
 };
 

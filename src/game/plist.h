@@ -136,7 +136,7 @@ struct PList {
     static PList create() { return PList{ .hits = HitLedger{.pool = {}, .free_list = U32_MAX }, .list = Vec<nproj::Projectile>::with_capacity(&global_arena, 10000) }; }
 
     void add(nproj::Projectile p) {
-        p.hit_bloons_i = U32_MAX; // hits.allocate_chunk();
+        p.hit_bloons_i = U32_MAX;
         list.push(p);
 	}
     void del(u32 i) {

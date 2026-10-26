@@ -5,6 +5,8 @@
 #include "graphics/data.h"
 #include "game/logic.h"
 
+#include "init_game.h"
+
 f64 logAt = 1.0;
 void logFps() {
     if (data::time >= logAt) {
@@ -102,19 +104,19 @@ void handleInput(Cam& c) {
     }
     /* gameplay related inputs */
     if (input::keyPressed(GLFW_KEY_1)) {
-        towers.push(ntower::Tower::spawn(&towerProtos[0], { c.pos.x, c.pos.y }));
+        towers->add(ntower::Tower::spawn(&tower_protos[0], { c.pos.x, c.pos.y }));
     }
     if (input::keyPressed(GLFW_KEY_2)) {
-        towers.push(ntower::Tower::spawn(&towerProtos[1], { c.pos.x, c.pos.y }));
+        towers->add(ntower::Tower::spawn(&tower_protos[1], { c.pos.x, c.pos.y }));
     }
     if (input::keyPressed(GLFW_KEY_3)) {
-        bloons->add(nbloon::Bloon::spawn(&bloonProtos[0], &path));
+        bloons->add(nbloon::Bloon::spawn(&bloon_protos[0], &path));
     }
     if (input::keyPressed(GLFW_KEY_4)) {
-        bloons->add(nbloon::Bloon::spawn(&bloonProtos[1], &path));
+        bloons->add(nbloon::Bloon::spawn(&bloon_protos[1], &path));
     }
     if (input::keyPressed(GLFW_KEY_5)) {
-        bloons->add(nbloon::Bloon::spawn(&bloonProtos[2], &path));
+        bloons->add(nbloon::Bloon::spawn(&bloon_protos[2], &path));
     }
 }
 
@@ -135,7 +137,7 @@ void frameTick(Cam const& c) {
         .view = c.viewMat(),
         .camPosition = c.pos
     };
-    Vec<engine::ShaderInstanceData> instanceData{ .arena = &frame_arena }; instanceData.reserve(1 + bloons->bloons.size + projs->list.size + towers.size);
+    Vec<engine::ShaderInstanceData> instanceData{ .arena = &frame_arena }; instanceData.reserve(1 + bloons->list.size + projs->list.size + towers->list.size);
     instanceData.push({ .model = glm::rotate(glm::scale(glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 0.0f, -2.0f)), glm::vec3(20.0f, 20.0f, 1.0f)), glm::radians(270.0f), glm::vec3(0.0f, 1.0f, 0.0f)), .texture = textures.ground });
     for (nbloon::Bloon& bloon : *bloons) {
         instanceData.push({
@@ -149,21 +151,27 @@ void frameTick(Cam const& c) {
             .texture = textures.projectile
             });
     }
-    for (ntower::Tower& tower : towers) {
+    for (ntower::Tower& tower : towers->list) {
         instanceData.push({
             .model = getAnimationModelMatrix(tower.attacked_on, tower.pos.x, tower.pos.y, tower.dir),
             .texture = textures.monke
             });
     }
     engine::startDraw(uniformData, { .data = instanceData.data, .size = instanceData.size });
-    engine::drawMesh(meshes.testQuad, 1); // ground
-    engine::drawMesh(meshes.testQuad, bloons->bloons.size + projs->list.size); // bloons and projectiles
-    engine::drawMesh(meshes.monke, towers.size); // monke
+    engine::drawMesh(meshes.quad, 1); // ground
+    engine::drawMesh(meshes.quad, bloons->list.size + projs->list.size); // bloons and projectiles
+    engine::drawMesh(meshes.monke, towers->list.size); // monke
     engine::endDraw();
 }
 
 int main() {
     initTestPrototypes();
+    //Vec<nbloon::Proto> arr = Vec<nbloon::Proto>::with(&global_arena, nbloon::Proto{.hp=1}, nbloon::Proto{.hp=2}, nbloon::Proto{.hp=4});
+    //Slice<nbloon::Proto*> what = Vec<nbloon::Proto*>::with(&global_arena, &arr[0], &arr[1], &arr[2]).full_slice();
+    //for (auto e : what) {
+    //    std::cout << e->hp << ", ";
+    //}
+    //std::cout << std::endl;
 	engine::init();
     data::init();
     input::init();
