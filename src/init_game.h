@@ -6,7 +6,7 @@
 
 template <f32 range, u32 count, f32 spread>
 bool multishot_attack(ntower::Tower* tower, nproj::Buff const& buff_context, nproj::Proto* proj) {
-    assert(tower->get_target_mode() == TargetMode::CloseBloon); // TODO
+    assert(tower->get_target_mode() == ntower::TargetMode::CloseBloon); // TODO
     nbloon::Bloon const* target = nullptr;
     f32 closest_dist = F32_INF;
     for (nbloon::Bloon const& bloon : bloons->list) {
@@ -19,7 +19,7 @@ bool multishot_attack(ntower::Tower* tower, nproj::Buff const& buff_context, npr
     // fire
     if (target == nullptr) { return false; }
     tower->dir = (target->pos - tower->pos).dir();
-    if (count == 1) {
+    if constexpr (count == 1) {
         projs->add(nproj::Projectile::spawn(proj, buff_context, tower->pos, tower->dir));
     }
     else {
