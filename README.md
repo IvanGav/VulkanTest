@@ -202,3 +202,23 @@ Yapping:
 - Interesting problem when I need to call `before_bloon_exited` and `after_bloon_exited` event handlers. Some of them may (and usually will) damage literally all bloons on the screen. So I'll need to continue handling all non-exited bloons to apply overkill and stuff from this tick. And then, I'll need to apply the events and THEN I'll need to go over all bloons again, since any amount of bloons may have been damaged/popped. I specifically do *not* need to apply any other `updateTick` stages, only the "pop bloons" stage, iteratively, until no event handlers have been called.
 - There's also a chance that having the Necromancer undead power and shots fired for Crits is better as part of an attack. Since it's inhenently the data that's used for an *attack*. Which turns my attacks from a lightweight `usize+u32` into either a polymorphic type (not happening) or a megastruct. Which is not horrible, but a bit annoying..
 - Overkilling bloons is actually deceivingly hard. You have to calculate a list of all children in one go, spawn them in a single line (aka iteratively popping and pushing on track is insufficient). But you also should apply the effects and calculate the true health instead of using the base health (unless that's what I want to have?).
+- Defortifying must also correct attribute all *child* fortified pops to the defortifying tower...
+
+Ok actually though. How do I handle bloon overkill? The problem is this:
+There may be (and will be - spike factory) several projectiles in the same tick that damage the same bloon.
+I need to handle overkill on the parent bloon, including the fortified property of child bloons, and calculate the consistent final damage.
+I may want to calculate the "optimal" damage - which means counting the non-overkill-able damage and overkill-able damage separately and apply them in order.
+Regardless, it needs to be deterministic even if you reload the save... Yeah, I probably want to calculate damage with and without overkill separately.
+After that I need to make sure to not overkill past their last child bloon. Or I mean, I can do it I guess, numerically.
+But later when applying the popping with overkill, I need to *attribute* the damage correctly to each projectile that hit that bloon.
+Again, it needs to be deterministic. When spawning the child bloons and applying all of the overkills and stuff.
+Wait, the non-overkill damage can be attributed straight at the point before popping the bloon.
+Ok, what are the most common cases? Blimp and non-overkill damage. Bloon and overkill damage (duh).
+So. Non-overkill damage gets applied immidiately.
+Overkill damage gets applied separately during the pop-overkill phase. Because, again, I need to attribute the damage values to the right tower and make sure 
+I don't over-overkill a bloon.
+
+Ok also. What are the tiebreakers on what projectile gets to damage the bloon first (hp/pop issue) *and* what bloons the projectile gets to damage first (pierce issue).
+The obvious answer is "who was created/spawned first". Another answer is "who has more damage/hp" - but still requires tiebreaking ugh.
+
+Damn. This is actually quite hard. Simply the fact that I need to *attribute* pops to the right towers makes it so *so* much harder.

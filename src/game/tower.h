@@ -1,9 +1,43 @@
 #pragma once
 
 #include "prelude.h"
-#include "attack.h"
+#include "plist.h"
 
 namespace ntower {
+
+    // return true if attacked (don't have to attack when called because, for example, may have no targets in range)
+    typedef bool(*attack_fn)(Tower*, nproj::Buff const&);
+    typedef u32(*get_cooldown_ticks_fn)();
+
+    struct Attack {
+        /* prototype */
+        std::function<bool(Tower*, nproj::Buff const&)> attack;
+        u32 cooldown_ticks;
+        /* state */
+        u32 attack_on_tick; // at/after this tick, can attack
+
+        Attack instantiate() const {
+            Attack clone = *this;
+            clone.attack_on_tick = data::update; // may fire right away
+            return clone;
+        }
+
+        bool tick(ntower::Tower* tower, nproj::Buff const& buff_context) {
+            if (data::update >= attack_on_tick) {
+                if (attack(tower, buff_context)) {
+                    attack_on_tick = data::update + cooldown_ticks;
+                    return true;
+                }
+            }
+            return false;
+        }
+    };
+
+    enum class TargetMode {
+        FirstBloon, StrongBloon, LastBloon, CloseBloon,
+        CloseRoad, FarRoad, SmartRoad,
+        Always, InRange,
+    };
 
     // TODO I can afford to make it a bit mask, but if need be, change to 0-4 later
     enum class Category {
@@ -19,8 +53,8 @@ namespace ntower {
     struct Proto {
         Category category;
         Type type;
-        Slice<nattack::Proto*> attacks;
-        Slice<nattack::TargetMode> target_modes;
+        Slice<Attack> attacks;
+        Slice<TargetMode> target_modes;
     };
 
     struct Tower {
@@ -28,7 +62,7 @@ namespace ntower {
         Proto* proto;
         Vec2 pos;
         f32 dir;
-        Vec<nattack::Attack> attacks;
+        Vec<Attack> attacks;
         u32 cur_target_mode;
         Vec<nproj::Buff> buffs;
 
@@ -42,13 +76,14 @@ namespace ntower {
         u32 bonus_money_count;
 
         // animation info
+        bool camo_priority; // hardcoded, regretably
         u32 attacked_on;
         //AnimationStateMachine anim_state;
 
         static Tower spawn(Proto* proto, Vec2 pos) {
-            Vec<nattack::Attack> attacks{ .arena = &game_arena };
-            for (nattack::Proto* attack_proto : proto->attacks) {
-                attacks.push({ .proto = attack_proto, .attack_on_tick = data::update });
+            Vec<Attack> attacks{ .arena = &game_arena };
+            for (Attack& attack_proto : proto->attacks) {
+                attacks.push(attack_proto.instantiate());
             }
             return Tower{
                 .proto = proto,
@@ -61,65 +96,18 @@ namespace ntower {
             };
         }
 
-        nattack::TargetMode get_target_mode() const { return proto->target_modes[cur_target_mode]; }
+        TargetMode get_target_mode() const { return proto->target_modes[cur_target_mode]; }
 
         void tick() {
             nproj::Buff buff_context = {};
             for (nproj::Buff const& buff : buffs) {
                 buff_context = buff_context + buff;
             }
-            for (nattack::Attack& attack : attacks) {
+            for (Attack& attack : attacks) {
                 bool attacked = attack.tick(this, buff_context);
                 if (attacked) attacked_on = data::update;
             }
         }
     };
 
-}
-
-
-
-// TODO move from here
-
-namespace nattack {
-
-
-    /* Specialized Prototypes */
-
-    // directional attack spawning `count` projectiles with `spread` angle between each of them
-    struct PSimple : Proto {
-        f32 range;
-        u32 cooldown_ticks;
-        u32 count;
-        f32 spread;
-        nproj::Proto* proj;
-        PSimple(f32 range, u32 cooldown_ticks, u32 count, f32 spread, nproj::Proto* proj) : range(range), cooldown_ticks(cooldown_ticks), count(count), spread(spread), proj(proj) {};
-        u32 get_cooldown_ticks() const override { return cooldown_ticks; };
-        bool attack(ntower::Tower* tower, nproj::Buff const& buff_context) const override {
-            assert(tower->get_target_mode() == TargetMode::CloseBloon); // TODO
-            nbloon::Bloon const* target = nullptr;
-            f32 closest_dist = F32_INF;
-            for (nbloon::Bloon const& bloon : bloons->list) {
-                f32 dist = (bloon.pos - tower->pos).len();
-                if (dist < closest_dist && dist <= range) {
-                    closest_dist = dist;
-                    target = &bloon;
-                }
-            }
-            // fire
-            if (target == nullptr) { return false; }
-            tower->dir = (target->pos - tower->pos).dir();
-            if (count == 1) {
-                projs->add(nproj::Projectile::spawn(proj, buff_context, tower->pos, tower->dir));
-            }
-            else {
-                for (u32 i = 0; i < count; i++) {
-                    f32 gap_angle = spread / (count - 1);
-                    f32 proj_dir = tower->dir - spread / 2 + i * gap_angle;
-                    projs->add(nproj::Projectile::spawn(proj, buff_context, tower->pos, proj_dir));
-                }
-            }
-            return true;
-        };
-    };
 }

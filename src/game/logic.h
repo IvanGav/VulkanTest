@@ -4,6 +4,16 @@
 #include "path.h"
 #include "global.h"
 
+// TODO later make a type registry where, well, the types are registered
+const nbloon::Type BTYPE_BLIMP = { 1 };
+const nbloon::Type BTYPE_CAMO = { 2 };
+const nbloon::Type BTYPE_LEAD = { 4 };
+const nbloon::Type BTYPE_FROZEN = { 8 };
+
+const nbloon::Type PTYPE_SHARP = BTYPE_LEAD | BTYPE_FROZEN;
+
+const ntower::Type TTYPE_DART_MONKEY = 0;
+
 // TODO move into `prelude.h` and get out of here
 npath::Path path;
 
@@ -46,24 +56,44 @@ void updateTick() {
     *   - So long as the called events do not modify same data, they can be called in parallel
     */
 
+    Vec<P<BID, u32>> hits = Vec<P<BID, u32>>{ .arena = &frame_arena };
+    hits.reserve(projs->list.size); // reserve some arbitrary amount to begin with
+    //Slice<bool> proj_live = Slice<bool>{ .data = frame_arena.alloc<bool>(projs->list.size), .size = projs->list.size }; // if true, projectile has hit a bloon it cannot pop; aka gets destroyed
+    //mem::zero(proj_live.data, proj_live.size);
+
     for (nbloon::Bloon& bloon : *bloons) {
         for (u32 pi = 0; pi < projs->list.size; pi++) {
             nproj::Projectile& proj = projs->list[pi];
             if (
                 proj.pierce > 0 &&
                 bloon.proto->hitbox.intersect(&proj.proto->hitbox, bloon.pos, proj.pos, bloon.dir, proj.dir) &&
-                !projs->has_hit(pi, bloon.bft) &&
-                proj.can_hit(bloon.type)
+                proj.can_hit(bloon.type) &&
+                !projs->has_hit(pi, bloon.bft)
             ) {
                 if (proj.can_pop(bloon.type)) {
-                    bloon.hp -= proj.proto->damage; // TODO do additional damage calculations
-                    proj.pierce -= 1;
-                    if (!proj.has_flag(nproj::FlagsBit::SkipRecordHits)) projs->record_hit(pi, bloon.bft);
+                    hits.push({bloon.id, pi});
                 } else {
-                    proj.pierce = 0;
+                    proj.pierce = 0; // thread safe because each projectile is assigned to exactly one thread
                 }
             }
         }
+    }
+    for (P<BID, u32> hit : hits) {
+        nbloon::Bloon* bloon = bloons->find(hit.a);
+        nproj::Projectile& proj = projs->list[hit.b];
+        if (proj.pierce == 0) { continue; }
+        proj.pierce -= 1;
+        i32 actual_proj_damage = proj.proto->damage; // TODO additional calculations here
+        i32 damage_dealt = 0;
+        if (!proj.has_flag(nproj::FlagsBit::OverkillBlimp) && bloon->type.has_any(BTYPE_BLIMP)) {
+            if (bloon->hp <= 0) { continue; } // do not even count it as a hit
+            damage_dealt = min(bloon->hp, actual_proj_damage);
+            bloon->hp = max(0, bloon->hp - actual_proj_damage);
+        } else {
+            // able to overkill
+            // TODO
+        }
+        if (!proj.has_flag(nproj::FlagsBit::SkipRecordHits)) { projs->record_hit(hit.b, bloon->bft); }
     }
     for (u32 i = 0; i < projs->list.size; i++) {
         if (projs->list[i].pierce == 0 || projs->list[i].lifetime_ticks == 0) {

@@ -75,4 +75,8 @@ f64 timeSinceLastUpdate() {
 	return timePassed;
 }
 
+constexpr u32 secondsToUpdates(f64 seconds) {
+	return u32(seconds * TARGET_UPS);
+}
+
 }

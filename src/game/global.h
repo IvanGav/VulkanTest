@@ -8,7 +8,6 @@
 // Prototypes
 Vec<nbloon::Proto> bloon_protos;
 Vec<nproj::Proto> proj_protos;
-Vec<nattack::Proto*> attack_protos;
 Vec<ntower::Proto> tower_protos;
 
 // Global Game State

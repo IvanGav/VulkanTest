@@ -166,12 +166,6 @@ void frameTick(Cam const& c) {
 
 int main() {
     initTestPrototypes();
-    //Vec<nbloon::Proto> arr = Vec<nbloon::Proto>::with(&global_arena, nbloon::Proto{.hp=1}, nbloon::Proto{.hp=2}, nbloon::Proto{.hp=4});
-    //Slice<nbloon::Proto*> what = Vec<nbloon::Proto*>::with(&global_arena, &arr[0], &arr[1], &arr[2]).full_slice();
-    //for (auto e : what) {
-    //    std::cout << e->hp << ", ";
-    //}
-    //std::cout << std::endl;
 	engine::init();
     data::init();
     input::init();

@@ -119,7 +119,6 @@ struct MoveWaypoint {
 
 // A movement component that lets an entity to move in a straight line (add move modifier components to change direction)
 struct MoveSimple {
-    //Vec2 velocity;
     f32 speed;
     u32 bounce; // number of bounces left
     bool collide; // if true, collide with obstacles higher than self
@@ -145,6 +144,13 @@ struct Move {
         MoveWaypoint move_waypoint;
         MoveSimple move_simple;
     };
+
+    static Move make_simple(f32 speed, u32 bounce = 0, bool collide = true) {
+        return Move{
+            .type = Type::MoveSimple,
+            .move_simple = MoveSimple{ .speed = speed, .bounce = 0, .collide = collide }
+        };
+    }
 
     void move(Vec2& pos_mut, f32& dir_mut) {
         switch(type) {
