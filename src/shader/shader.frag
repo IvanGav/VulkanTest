@@ -41,6 +41,8 @@ const float shininess = 16.0;
 const float screenGamma = 2.2;
 
 void main() {
+    vec4 textureColor = texture(textures[textureIndex], inUV);
+    if(textureColor.a < 0.5) { discard; }
     vec3 normal = normalize(inNormal);
     // vec3 lightDir = lightPos - inPosition; // point light
     vec3 lightDir = normalize(lightPos) * 6.0; // directional light
@@ -58,5 +60,5 @@ void main() {
     }
     vec3 colorLinear = ambientColor + diffuseColor * lambertian * lightColor * lightPower / distance + specColor * specular * lightColor * lightPower / distance;
     vec3 colorGammaCorrected = pow(colorLinear, vec3(1.0 / screenGamma));
-    outColor = texture(textures[textureIndex], inUV) * vec4(colorGammaCorrected, 1.0);
+    outColor = textureColor * vec4(colorGammaCorrected, 1.0);
 }
