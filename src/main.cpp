@@ -76,6 +76,7 @@ glm::mat4 getStaticModelMatrix(visual::Static const& sprite, f32 x, f32 y, f32 d
 }
 
 bool mouseCaptured = false;
+bool gamePaused = false;
 void handleInput(Cam& c) {
     if (input::keyDown(GLFW_KEY_W)) {
         c.pos += c.dirForward() * 0.2f * f32(data::timeDelta * 100.0);
@@ -110,6 +111,9 @@ void handleInput(Cam& c) {
             c.fov = glm::clamp(c.fov, glm::radians(1.0f), glm::radians(179.0f));
         }
     }
+    if (input::keyPressed(GLFW_KEY_P)) {
+        gamePaused = !gamePaused;
+    }
     if (input::keyPressed(GLFW_KEY_Q)) {
         c.orthographic = !c.orthographic;
     }
@@ -120,20 +124,19 @@ void handleInput(Cam& c) {
         std::cout << "______________" << std::endl;
     }
     /* gameplay related inputs */
-    if (input::keyPressed(GLFW_KEY_1)) {
-        towers->add(ntower::Tower::spawn(&tower_protos[0], { c.pos.x, c.pos.y }));
+    constexpr u32 keysMonkeyNum = 2;
+    u32 keysMonkey[keysMonkeyNum] = { GLFW_KEY_Z, GLFW_KEY_X };
+    for (u32 i = 0; i < keysMonkeyNum; i++) {
+        if (input::keyPressed(keysMonkey[i])) {
+            towers->add(ntower::Tower::spawn(&tower_protos[i], { c.pos.x, c.pos.y }));
+        }
     }
-    if (input::keyPressed(GLFW_KEY_2)) {
-        towers->add(ntower::Tower::spawn(&tower_protos[1], { c.pos.x, c.pos.y }));
-    }
-    if (input::keyPressed(GLFW_KEY_3)) {
-        bloons->add(nbloon::Bloon::spawn(&bloon_protos[0], &path));
-    }
-    if (input::keyPressed(GLFW_KEY_4)) {
-        bloons->add(nbloon::Bloon::spawn(&bloon_protos[1], &path));
-    }
-    if (input::keyPressed(GLFW_KEY_5)) {
-        bloons->add(nbloon::Bloon::spawn(&bloon_protos[2], &path));
+    constexpr u32 keysBloonNum = 4;
+    u32 keysBloon[keysBloonNum] = { GLFW_KEY_1, GLFW_KEY_2, GLFW_KEY_3, GLFW_KEY_4 };
+    for (u32 i = 0; i < keysBloonNum; i++) {
+        if (input::keyPressed(keysBloon[i])) {
+            bloons->add(nbloon::Bloon::spawn(&bloon_protos[i], &path));
+        }
     }
 }
 
@@ -195,7 +198,7 @@ int main() {
         captureReleaseMouse();
         handleInput(c);
         frameTick(c);
-        if (data::timeSinceLastUpdate() >= (1.0 / data::TARGET_UPS)) {
+        if (!gamePaused && data::timeSinceLastUpdate() >= (1.0 / data::TARGET_UPS)) {
             updateTick();
             data::updateTick();
         }

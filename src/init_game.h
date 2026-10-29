@@ -5,10 +5,10 @@
 /* helper functions */
 
 // put a slice of prototypes onto global arena
-//template <typename T, typename... Args>
-//auto make_proto_slice(Args&&... args) {
-//    return Vec<T>::with(&global_arena, std::forward<Args>(args)...).full_slice();
-//}
+template <typename T, typename... Args>
+auto make_global_slice(Args&&... args) {
+    return Vec<T>::with(&global_arena, std::forward<Args>(args)...).full_slice();
+}
 
 /* attack functions */
 
@@ -111,65 +111,73 @@ void init_bloon_protos() {
     bloon_protos.push(nbloon::Proto{
         .hp = 1,
         .type = 0,
-        .speed = 0.1,
+        .speed = 0.08,
         .children = {},
         .hitbox = hitbox::HB::make_circle(0.5),
         .max_hitbox_dist = 0.5,
         .sprite = { .mesh = meshes.quad, .texture = textures.red }
         });
-    Slice<nbloon::Proto*> b1children = Vec<nbloon::Proto*>::with(&global_arena, &bloon_protos[0]).full_slice();
+    nbloon::Proto* red = &bloon_protos.back();
     bloon_protos.push(nbloon::Proto{
-        .hp = 2,
+        .hp = 1,
         .type = 0,
-        .speed = 0.2,
-        .children = b1children,
+        .speed = 0.12,
+        .children = make_global_slice<nbloon::Proto*>(red),
         .hitbox = hitbox::HB::make_circle(0.5),
         .max_hitbox_dist = 0.5,
         .sprite = { .mesh = meshes.quad, .texture = textures.blue }
         });
-    Slice<nbloon::Proto*> b2children = Vec<nbloon::Proto*>::with(&global_arena, &bloon_protos[0], &bloon_protos[0], &bloon_protos[1]).full_slice();
+    nbloon::Proto* blue = &bloon_protos.back();
+    bloon_protos.push(nbloon::Proto{
+        .hp = 2,
+        .type = 0,
+        .speed = 0.16,
+        .children = make_global_slice<nbloon::Proto*>(blue),
+        .hitbox = hitbox::HB::make_circle(0.5),
+        .max_hitbox_dist = 0.5,
+        .sprite = {.mesh = meshes.quad, .texture = textures.green }
+        });
+    nbloon::Proto* green = &bloon_protos.back();
     bloon_protos.push(nbloon::Proto{
         .hp = 1,
         .type = BTYPE_LEAD,
-        .speed = 0.05,
-        .children = b2children,
+        .speed = 0.04,
+        .children = make_global_slice<nbloon::Proto*>(red, blue, green),
         .hitbox = hitbox::HB::make_circle(0.5),
         .max_hitbox_dist = 0.5,
         .sprite = { .mesh = meshes.quad, .texture = textures.lead }
         });
+    nbloon::Proto* lead = &bloon_protos.back();
 }
 
 void init_tower_protos() {
-    Slice<ntower::Attack> t0attacks = Vec<ntower::Attack>::with(&global_arena,
-        ntower::Attack{
-            .attack = new std::function([proj_proto = &proj_protos[0]](ntower::Tower* tower, nproj::Buff const& buff_context) {
-                return simple_attack<6.0f>(tower, buff_context, proj_proto);
-            }),
-            .cooldown_ticks = 140
-        }
-    ).full_slice();
     tower_protos.push(ntower::Proto{
-        .attacks = t0attacks,
+        .attacks = make_global_slice<ntower::Attack>(
+            ntower::Attack{
+                .attack = new std::function([proj_proto = &proj_protos[0]](ntower::Tower* tower, nproj::Buff const& buff_context) {
+                    return simple_attack<6.0f>(tower, buff_context, proj_proto);
+                }),
+                .cooldown_ticks = 140
+            }
+        ),
         .target_modes = { .data = global_arena.push(ntower::TargetMode::CloseBloon), .size = 1 },
         .sprite = { .mesh = meshes.monke, .texture = textures.monke, .state = visual::AnimationState::Spawn, .animation_duration_ref = 0, .animation_transition_ref = 0 }
         });
-
-    Slice<ntower::Attack> t1attacks = Vec<ntower::Attack>::with(&global_arena, 
-        //ntower::Attack{
-        //    .attack = new std::function([proj_proto = &proj_protos[0]](ntower::Tower* tower, nproj::Buff const& buff_context) {
-        //        return simple_attack<6.0f>(tower, buff_context, proj_proto);
-        //    }),
-        //    .cooldown_ticks = 140
-        //},
-        ntower::Attack{
-            .attack = new std::function([proj_proto = &proj_protos[1]](ntower::Tower* tower, nproj::Buff const& buff_context) {
-                return multishot_attack<4.0f, 1, glm::radians(120.0f)>(tower, buff_context, proj_proto);
-            }),
-            .cooldown_ticks = 300
-        }
-    ).full_slice();
     tower_protos.push(ntower::Proto{
-        .attacks = t1attacks,
+        .attacks = make_global_slice<ntower::Attack>(
+        //    ntower::Attack{
+        //        .attack = new std::function([proj_proto = &proj_protos[0]](ntower::Tower* tower, nproj::Buff const& buff_context) {
+        //            return simple_attack<6.0f>(tower, buff_context, proj_proto);
+        //        }),
+        //        .cooldown_ticks = 140
+        //    },
+            ntower::Attack{
+                .attack = new std::function([proj_proto = &proj_protos[1]](ntower::Tower* tower, nproj::Buff const& buff_context) {
+                    return multishot_attack<4.0f, 1, glm::radians(120.0f)>(tower, buff_context, proj_proto);
+                }),
+                .cooldown_ticks = 300
+            }
+        ),
         .target_modes = { .data = global_arena.push(ntower::TargetMode::CloseBloon), .size = 1 },
         .sprite = { .mesh = meshes.monke, .texture = textures.monke2, .state = visual::AnimationState::Spawn, .animation_duration_ref = 0, .animation_transition_ref = 0 }
         });
