@@ -841,7 +841,7 @@ MeshRef loadMeshObj(const char* path) {
     std::vector<tinyobj::shape_t> shapes;
     std::vector<tinyobj::material_t> materials;
     {
-        bool result = tinyobj::LoadObj(&attrib, &shapes, &materials, nullptr, path);
+        bool result = tinyobj::LoadObj(&attrib, &shapes, &materials, nullptr, nullptr, path);
         if (!result) { err("Could not load obj"); }
     }
 

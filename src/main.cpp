@@ -102,6 +102,12 @@ void handleInput(Cam& c) {
     if (input::keyPressed(GLFW_KEY_Q)) {
         c.orthographic = !c.orthographic;
     }
+    if (input::keyPressed(GLFW_KEY_E)) {
+        for (ntower::Tower& tower : *towers) {
+            std::cout << "tower id {" << tower.id.i << "," << tower.id.gen << "} has " << tower.pop_count << " pops" << std::endl;
+        }
+        std::cout << "______________" << std::endl;
+    }
     /* gameplay related inputs */
     if (input::keyPressed(GLFW_KEY_1)) {
         towers->add(ntower::Tower::spawn(&tower_protos[0], { c.pos.x, c.pos.y }));
@@ -142,7 +148,7 @@ void frameTick(Cam const& c) {
     for (nbloon::Bloon& bloon : *bloons) {
         instanceData.push({
             .model = glm::rotate(glm::rotate(glm::translate(glm::mat4(1.0f), glm::vec3(bloon.pos.x, bloon.pos.y, 0.0f)), glm::radians(270.0f), glm::vec3(0.0f, 1.0f, 0.0f)), bloon.dir, glm::vec3(1.0f, 0.0f, 0.0f)),
-            .texture = (bloon.type.has_any({1}) ? textures.triangle : textures.kyaru)
+            .texture = (bloon.type.has_any(BTYPE_CERAMIC) ? textures.triangle : textures.kyaru)
             });
     }
     for (nproj::Projectile& proj : *projs) {

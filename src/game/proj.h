@@ -78,7 +78,7 @@ struct Projectile {
     Vec2 pos;
     f32 dir;
 
-    static Projectile spawn(Proto* proto, Buff const& buff, Vec2 pos, f32 dir) {
+    static Projectile spawn(Proto* proto, Buff const& buff, Vec2 pos, f32 dir, TID tower_id) {
         // TODO apply buff
         return nproj::Projectile{
             .proto = proto,
@@ -86,6 +86,7 @@ struct Projectile {
             .pierce = proto->pierce,
             .movement = proto->move,
             .lifetime_ticks = proto->lifetime_ticks,
+            .parent_tower = tower_id,
             .pos = pos,
             .dir = dir
         };
@@ -106,6 +107,10 @@ struct Projectile {
     bool can_pop(nbloon::Type bt) {
         // TODO apply buff
         return !proto->cannot_pop_type.has_any(bt);
+    }
+
+    bool can_overkill(nbloon::Type bt) {
+        return !(!has_flag(nproj::FlagsBit::OverkillBlimp) && bt.has_any(BTYPE_BLIMP));
     }
 
     bool has_flag(FlagsBit bit) {

@@ -7,7 +7,7 @@
 
 namespace nbloon {
 
-const u32 STEPS_MULT = 20;
+const f32 STEPS_CHILD_MOVE = 0.5f;
 
 // bitmask for lead/purple/white/black/etc
 struct Type {
@@ -22,7 +22,7 @@ struct Type {
 };
 
 struct Proto {
-    u32 hp;
+    i32 hp;
     Type type;
     f32 speed;
     Slice<Proto*> children;
@@ -105,7 +105,7 @@ struct Bloon {
     }
 
     // `child_num` is 0-indexed
-    Bloon get_child(u32 child_num) const {
+    Bloon get_child(u32 child_num, bool add_own_hp = false) const {
         assert(child_num < proto->children.size);
         Proto* child_proto = proto->children[child_num];
         Bloon child = Bloon {
@@ -113,12 +113,11 @@ struct Bloon {
             .bft = bft.get_child(proto->children.size, child_num),
             .type = child_proto->type,
             .dir = dir,
-            .hp = (i32) child_proto->hp,
-            .movement = movement, // temporary
+            .hp = add_own_hp ? child_proto->hp + hp : child_proto->hp,
+            .movement = movement,
             .proto = child_proto
         };
-        child.movement.move_helper(child.movement.speed * STEPS_MULT * child_num, child.pos, child.dir); // move the child based on child_num
-        child.movement.speed = child_proto->speed;
+        child.movement.speed = child_proto->speed; // TODO make better
         return child;
     }
 
@@ -126,6 +125,20 @@ struct Bloon {
     void move() { movement.move(pos, dir); }
     bool is_exited() const { return movement.is_exited(); }
     bool is_dead() const { return hp <= 0; }
+    // assuming `this` has been spawned at the place of its parent, and it's a `child_num`, regress the bloon along the track accordingly
+    // TODO regress instead of progress
+    void move_child(u32 child_num) {
+        movement.move_helper(STEPS_CHILD_MOVE * child_num, pos, dir);
+    }
 };
 
 };
+
+// TODO do something about this
+const nbloon::Type BTYPE_BLIMP = { 1 };
+const nbloon::Type BTYPE_CAMO = { 2 };
+const nbloon::Type BTYPE_LEAD = { 4 };
+const nbloon::Type BTYPE_CERAMIC = { 8 };
+const nbloon::Type BTYPE_FROZEN = { 16 };
+
+const nbloon::Type PTYPE_SHARP = BTYPE_LEAD | BTYPE_FROZEN;

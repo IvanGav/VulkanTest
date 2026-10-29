@@ -11,7 +11,7 @@ namespace ntower {
 
     struct Attack {
         /* prototype */
-        std::function<bool(Tower*, nproj::Buff const&)> attack;
+        std::function<bool(Tower*, nproj::Buff const&)>* attack;
         u32 cooldown_ticks;
         /* state */
         u32 attack_on_tick; // at/after this tick, can attack
@@ -24,7 +24,7 @@ namespace ntower {
 
         bool tick(ntower::Tower* tower, nproj::Buff const& buff_context) {
             if (data::update >= attack_on_tick) {
-                if (attack(tower, buff_context)) {
+                if ((*attack)(tower, buff_context)) {
                     attack_on_tick = data::update + cooldown_ticks;
                     return true;
                 }
@@ -111,3 +111,6 @@ namespace ntower {
     };
 
 }
+
+// TODO do something about this
+const ntower::Type TTYPE_DART_MONKEY = 0;
