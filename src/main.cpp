@@ -49,12 +49,15 @@ struct Cam {
     }
 };
 
-const u32 animationLength = 50;
-glm::mat4 getAnimationModelMatrix(u32 animationStartTick, f32 x, f32 y, f32 dir) {
-    if (i32(data::update) - animationStartTick > animationLength) {
+glm::mat4 getAnimationModelMatrix(visual::Animated const& animation, f32 x, f32 y, f32 dir) {
+    f64 animationProgress = animation.animation_progress();
+    if (animation.state == visual::AnimationState::Idle) {
         return glm::rotate(glm::translate(glm::mat4(1.0f), glm::vec3(x, y, 0.0f)), dir + glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
     }
-    f64 animationProgress = f64(i32(data::update) - animationStartTick) / animationLength; // 0 to 1
+    if (animation.state == visual::AnimationState::Spawn) {
+        f32 moveUp = (1.0f - animationProgress) * 5;
+        return glm::translate(glm::rotate(glm::translate(glm::mat4(1.0f), glm::vec3(x, y, 0.0f)), dir + glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f)), glm::vec3(0.0f, 0.0f, moveUp));
+    }
     animationProgress *= 2.0;
     animationProgress = animationProgress > 1.0 ? (-(animationProgress - 2.0)) : animationProgress;
     return glm::rotate(
@@ -62,6 +65,14 @@ glm::mat4 getAnimationModelMatrix(u32 animationStartTick, f32 x, f32 y, f32 dir)
         f32(animationProgress) * glm::radians(75.0f),
         glm::vec3(1.0f, 0.0f, 0.0f)
     );
+}
+
+glm::mat4 getStaticModelMatrix(visual::Static const& sprite, f32 x, f32 y, f32 dir, Cam const& cam) {
+    if (sprite.is_billboard()) {
+        return glm::rotate(glm::rotate(glm::rotate(glm::translate(glm::mat4(1.0f), glm::vec3(x, y, 0.0f)), cam.yaw, glm::vec3(0.0f, 0.0f, 1.0f)), -cam.pitch + glm::radians(180.0f), glm::vec3(0.0f, 1.0f, 0.0f)), glm::radians(180.0f), glm::vec3(1.0f, 0.0f, 0.0f));
+    } else {
+        return glm::rotate(glm::rotate(glm::translate(glm::mat4(1.0f), glm::vec3(x, y, 0.0f)), glm::radians(270.0f), glm::vec3(0.0f, 1.0f, 0.0f)), dir, glm::vec3(1.0f, 0.0f, 0.0f));
+    }
 }
 
 bool mouseCaptured = false;
@@ -147,20 +158,20 @@ void frameTick(Cam const& c) {
     instanceData.push({ .model = glm::rotate(glm::scale(glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 0.0f, -2.0f)), glm::vec3(20.0f, 20.0f, 1.0f)), glm::radians(270.0f), glm::vec3(0.0f, 1.0f, 0.0f)), .texture = textures.ground });
     for (nbloon::Bloon& bloon : *bloons) {
         instanceData.push({
-            .model = glm::rotate(glm::rotate(glm::translate(glm::mat4(1.0f), glm::vec3(bloon.pos.x, bloon.pos.y, 0.0f)), glm::radians(270.0f), glm::vec3(0.0f, 1.0f, 0.0f)), bloon.dir, glm::vec3(1.0f, 0.0f, 0.0f)),
-            .texture = (bloon.type.has_any(BTYPE_CERAMIC) ? textures.triangle : textures.kyaru)
+            .model = getStaticModelMatrix(bloon.proto->sprite, bloon.pos.x, bloon.pos.y, bloon.dir, c),
+            .texture = bloon.proto->sprite.texture,
             });
     }
     for (nproj::Projectile& proj : *projs) {
         instanceData.push({
-            .model = glm::rotate(glm::rotate(glm::translate(glm::mat4(1.0f), glm::vec3(proj.pos.x, proj.pos.y, 0.0f)), glm::radians(270.0f), glm::vec3(0.0f, 1.0f, 0.0f)), proj.dir, glm::vec3(1.0f, 0.0f, 0.0f)),
-            .texture = textures.projectile
+            .model = getStaticModelMatrix(proj.proto->sprite, proj.pos.x, proj.pos.y, proj.dir, c),
+            .texture = proj.proto->sprite.texture,
             });
     }
     for (ntower::Tower& tower : towers->list) {
         instanceData.push({
-            .model = getAnimationModelMatrix(tower.attacked_on, tower.pos.x, tower.pos.y, tower.dir),
-            .texture = textures.monke
+            .model = getAnimationModelMatrix(tower.sprite, tower.pos.x, tower.pos.y, tower.dir),
+            .texture = tower.sprite.texture
             });
     }
     engine::startDraw(uniformData, { .data = instanceData.data, .size = instanceData.size });
@@ -171,6 +182,7 @@ void frameTick(Cam const& c) {
 }
 
 int main() {
+    printd(std::numeric_limits<float>::is_iec559);
     initTestPrototypes();
 	engine::init();
     data::init();

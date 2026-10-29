@@ -9,10 +9,23 @@ npath::Path path;
 
 struct {
     engine::TextureRef monke;
+    engine::TextureRef monke2;
     engine::TextureRef kyaru;
     engine::TextureRef triangle;
     engine::TextureRef projectile;
     engine::TextureRef ground;
+
+    engine::TextureRef red;
+    engine::TextureRef blue;
+    engine::TextureRef green;
+    engine::TextureRef yellow;
+    engine::TextureRef pink;
+    engine::TextureRef black;
+    engine::TextureRef white;
+    engine::TextureRef zebra;
+    engine::TextureRef lead;
+    engine::TextureRef rainbow;
+    engine::TextureRef urple;
 } textures;
 
 struct {

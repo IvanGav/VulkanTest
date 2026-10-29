@@ -14,6 +14,7 @@
 #include <stdalign.h>
 #include <type_traits>
 #include <vector>
+#include <array>
 
 using std::move;
 

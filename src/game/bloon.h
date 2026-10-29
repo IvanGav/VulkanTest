@@ -4,6 +4,7 @@
 #include "hitbox.h"
 #include "move.h"
 #include "global.h"
+#include "visual.h"
 
 namespace nbloon {
 
@@ -28,7 +29,8 @@ struct Proto {
     Slice<Proto*> children;
     hitbox::HB hitbox;
     f32 max_hitbox_dist; // distance to farthest point on a hitbox; basically defines the AABB of this hitbox
-    bool speed_status_immune;
+    bool speed_status_immune; // TODO probably replace with "f32 speed_status_mult" or something, because BFBs also get slowed down less... i think
+    visual::Static sprite;
 };
 
 // Bloon Family Tree

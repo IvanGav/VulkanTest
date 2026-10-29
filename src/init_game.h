@@ -2,6 +2,14 @@
 
 #include "game/logic.h"
 
+/* helper functions */
+
+// put a slice of prototypes onto global arena
+//template <typename T, typename... Args>
+//auto make_proto_slice(Args&&... args) {
+//    return Vec<T>::with(&global_arena, std::forward<Args>(args)...).full_slice();
+//}
+
 /* attack functions */
 
 template <f32 range, u32 count, f32 spread>
@@ -41,10 +49,23 @@ bool simple_attack(ntower::Tower* tower, nproj::Buff const& buff_context, nproj:
 
 void load_textures() {
     textures.monke = engine::loadTexture("asset/monke.png");
+    textures.monke2 = engine::loadTexture("asset/monke2.png");
     textures.kyaru = engine::loadTexture("asset/kyaru.png");
     textures.triangle = engine::loadTexture("asset/triangle.png");
     textures.projectile = engine::loadTexture("asset/projectile.png");
     textures.ground = engine::loadTexture("asset/ground.png");
+
+    textures.red = engine::loadTexture("asset/bloon/red.png");
+    textures.blue = engine::loadTexture("asset/bloon/blue.png");
+    textures.green = engine::loadTexture("asset/bloon/green.png");
+    textures.yellow = engine::loadTexture("asset/bloon/yellow.png");
+    textures.pink = engine::loadTexture("asset/bloon/pink.png");
+    textures.black = engine::loadTexture("asset/bloon/black.png");
+    textures.white = engine::loadTexture("asset/bloon/white.png");
+    textures.zebra = engine::loadTexture("asset/bloon/zebra.png");
+    textures.lead = engine::loadTexture("asset/bloon/lead.png");
+    textures.rainbow = engine::loadTexture("asset/bloon/rainbow.png");
+    textures.urple = engine::loadTexture("asset/bloon/urple.png");
 }
 
 void load_meshes() {
@@ -52,20 +73,37 @@ void load_meshes() {
     meshes.quad = engine::loadTestMesh();
 }
 
+void init_animations() {
+    std::array<u32, 3> anim1duration = {60, 60, 50};
+    std::array<std::array<visual::AnimationTransitionType, 3>, 3> anim1transitions = {
+        std::array<visual::AnimationTransitionType, 3>{visual::AnimationTransitionType::Disallow, visual::AnimationTransitionType::AllowWhenDone, visual::AnimationTransitionType::AllowWhenDone},
+        std::array<visual::AnimationTransitionType, 3>{visual::AnimationTransitionType::Disallow, visual::AnimationTransitionType::Allow, visual::AnimationTransitionType::Allow},
+        std::array<visual::AnimationTransitionType, 3>{visual::AnimationTransitionType::Disallow, visual::AnimationTransitionType::AllowWhenDone, visual::AnimationTransitionType::Allow}
+    };
+    std::array<visual::AnimationState, 3> anim1auto = { visual::AnimationState::Idle, visual::AnimationState::Idle, visual::AnimationState::Idle };
+
+    visual::animation_duration_table.push(anim1duration);
+    visual::animation_transition_table.push(anim1transitions);
+    visual::animation_auto_transition_table.push(anim1auto);
+}
+
 void init_projectile_protos() {
     proj_protos.push(nproj::Proto{
         .damage = 1,
         .pierce = 3,
-        .move = nmove::Move{ .type = nmove::Type::MoveSimple, .move_simple = nmove::MoveSimple{ .speed = 0.2 } },
+        .cannot_pop_type = PTYPE_SHARP,
+        .move = nmove::Move{ .type = nmove::Type::MoveSimple, .move_simple = nmove::MoveSimple{ .speed = 0.4 } },
         .hitbox = hitbox::HB::make_circle(0.5),
-        .lifetime_ticks = 100
+        .lifetime_ticks = 100,
+        .sprite = { .mesh = meshes.quad, .texture = textures.projectile }
         });
     proj_protos.push(nproj::Proto{
         .damage = 3,
         .pierce = 1,
-        .move = nmove::Move{ .type = nmove::Type::MoveSimple, .move_simple = nmove::MoveSimple{ .speed = 0.04 } },
+        .move = nmove::Move{ .type = nmove::Type::MoveSimple, .move_simple = nmove::MoveSimple{ .speed = 0.15 } },
         .hitbox = hitbox::HB::make_circle(0.5),
-        .lifetime_ticks = 500
+        .lifetime_ticks = 500,
+        .sprite = { .mesh = meshes.quad, .texture = textures.projectile }
         });
 }
 
@@ -74,30 +112,30 @@ void init_bloon_protos() {
         .hp = 1,
         .type = 0,
         .speed = 0.1,
-        .children = { .data = nullptr, .size = 0 },
+        .children = {},
         .hitbox = hitbox::HB::make_circle(0.5),
         .max_hitbox_dist = 0.5,
-        .speed_status_immune = false
+        .sprite = { .mesh = meshes.quad, .texture = textures.red }
         });
     Slice<nbloon::Proto*> b1children = Vec<nbloon::Proto*>::with(&global_arena, &bloon_protos[0]).full_slice();
     bloon_protos.push(nbloon::Proto{
         .hp = 2,
-        .type = BTYPE_CERAMIC,
+        .type = 0,
         .speed = 0.2,
         .children = b1children,
         .hitbox = hitbox::HB::make_circle(0.5),
         .max_hitbox_dist = 0.5,
-        .speed_status_immune = false
+        .sprite = { .mesh = meshes.quad, .texture = textures.blue }
         });
     Slice<nbloon::Proto*> b2children = Vec<nbloon::Proto*>::with(&global_arena, &bloon_protos[0], &bloon_protos[0], &bloon_protos[1]).full_slice();
     bloon_protos.push(nbloon::Proto{
         .hp = 1,
-        .type = BTYPE_CERAMIC,
+        .type = BTYPE_LEAD,
         .speed = 0.05,
         .children = b2children,
         .hitbox = hitbox::HB::make_circle(0.5),
         .max_hitbox_dist = 0.5,
-        .speed_status_immune = false
+        .sprite = { .mesh = meshes.quad, .texture = textures.lead }
         });
 }
 
@@ -113,6 +151,7 @@ void init_tower_protos() {
     tower_protos.push(ntower::Proto{
         .attacks = t0attacks,
         .target_modes = { .data = global_arena.push(ntower::TargetMode::CloseBloon), .size = 1 },
+        .sprite = { .mesh = meshes.monke, .texture = textures.monke, .state = visual::AnimationState::Spawn, .animation_duration_ref = 0, .animation_transition_ref = 0 }
         });
 
     Slice<ntower::Attack> t1attacks = Vec<ntower::Attack>::with(&global_arena, 
@@ -132,6 +171,7 @@ void init_tower_protos() {
     tower_protos.push(ntower::Proto{
         .attacks = t1attacks,
         .target_modes = { .data = global_arena.push(ntower::TargetMode::CloseBloon), .size = 1 },
+        .sprite = { .mesh = meshes.monke, .texture = textures.monke2, .state = visual::AnimationState::Spawn, .animation_duration_ref = 0, .animation_transition_ref = 0 }
         });
 }
 
@@ -140,6 +180,7 @@ void init_tower_protos() {
 void initTestPrototypes() {
     load_textures();
     load_meshes();
+    init_animations();
     init_bloon_protos();
     init_projectile_protos();
     init_tower_protos();

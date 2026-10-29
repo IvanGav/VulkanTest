@@ -55,6 +55,7 @@ namespace ntower {
         Type type;
         Slice<Attack> attacks;
         Slice<TargetMode> target_modes;
+        visual::Animated sprite;
     };
 
     struct Tower {
@@ -77,8 +78,7 @@ namespace ntower {
 
         // animation info
         bool camo_priority; // hardcoded, regretably
-        u32 attacked_on;
-        //AnimationStateMachine anim_state;
+        visual::Animated sprite;
 
         static Tower spawn(Proto* proto, Vec2 pos) {
             Vec<Attack> attacks{ .arena = &game_arena };
@@ -91,8 +91,8 @@ namespace ntower {
                 .dir = 0.0f, // assume initial rotation
                 .attacks = attacks, // ok to (mem) copy since the original goes out of scope
                 .cur_target_mode = 0,
-                .buffs = Vec<nproj::Buff> { .arena = &game_arena },
-                .attacked_on = 0,
+                .buffs = Vec<nproj::Buff> {.arena = &game_arena },
+                .sprite = proto->sprite.instanciate()
             };
         }
 
@@ -105,8 +105,9 @@ namespace ntower {
             }
             for (Attack& attack : attacks) {
                 bool attacked = attack.tick(this, buff_context);
-                if (attacked) attacked_on = data::update;
+                if (attacked) { sprite.transition(visual::AnimationState::Attack); }
             }
+            sprite.do_auto_transition();
         }
     };
 

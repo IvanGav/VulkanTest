@@ -36,6 +36,8 @@ struct Proto {
     Proto* on_death_spawn_projectile;
     //DamageBonus damage_bonus_add;
     // Slice<bloon::Effect> apply_effects;
+
+    visual::Static sprite;
 };
 
 struct Buff {
