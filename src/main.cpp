@@ -75,6 +75,44 @@ glm::mat4 getStaticModelMatrix(visual::Static const& sprite, f32 x, f32 y, f32 d
     }
 }
 
+glm::vec2 raycast(f32 screenX, f32 screenY, Cam& cam, f32 zIntercept) {
+    const f32 epsilon = 0.0001f;
+    const glm::vec3 normal = glm::vec3(0.0f, 0.0f, 1.0f);
+    glm::vec3 rayDir;
+    glm::vec3 rayOrigin;
+    f32 aspect = f32(data::framebufferWidth) / f32(data::framebufferHeight);
+    f32 percentScreenX = screenX / data::framebufferWidth;
+    f32 percentScreenY = screenY / data::framebufferHeight;
+    f32 offsetScreenX = (0.5f - percentScreenX) * 2.0f;
+    f32 offsetScreenY = (0.5f - percentScreenY) * 2.0f;
+    glm::vec3 forward = cam.dirLook();
+    glm::vec3 right = cam.dirRight();
+    glm::vec3 up = glm::cross(forward, right);
+    if (cam.orthographic) {
+        glm::vec3 offset =
+            right * cam.viewWidth * offsetScreenX +
+            up * (cam.viewWidth/aspect) * offsetScreenY;
+        rayDir = forward;
+        rayOrigin = cam.pos + offset;
+    } else {
+        f32 tanHalfFov = tan(cam.fov * 0.5f);
+        rayDir = glm::normalize(
+            forward +
+            right * (offsetScreenX * tanHalfFov * aspect) +
+            up * (offsetScreenY * tanHalfFov)
+        );
+        rayOrigin = cam.pos;
+    }
+    f32 denom = glm::dot(normal, rayDir);
+    if (abs(denom) > epsilon) {
+        f32 t = glm::dot((glm::vec3(0.0f, 0.0f, zIntercept) - rayOrigin), normal) / denom;
+        glm::vec3 intercept = rayOrigin + rayDir * t;
+        return glm::vec2(intercept.x, intercept.y);
+    }
+    warn("raycasting into infinity");
+    return glm::vec2(cam.pos.x, cam.pos.y);
+}
+
 bool mouseCaptured = false;
 bool gamePaused = false;
 void handleInput(Cam& c) {
@@ -128,7 +166,12 @@ void handleInput(Cam& c) {
     u32 keysMonkey[keysMonkeyNum] = { GLFW_KEY_Z, GLFW_KEY_X };
     for (u32 i = 0; i < keysMonkeyNum; i++) {
         if (input::keyPressed(keysMonkey[i])) {
-            towers->add(ntower::Tower::spawn(&tower_protos[i], { c.pos.x, c.pos.y }));
+            if (mouseCaptured) {
+                towers->add(ntower::Tower::spawn(&tower_protos[i], { c.pos.x, c.pos.y }));
+            } else {
+                glm::vec2 pos = raycast(input::mousePos.x, input::mousePos.y, c, 0.0f);
+                towers->add(ntower::Tower::spawn(&tower_protos[i], { pos.x, pos.y }));
+            }
         }
     }
     constexpr u32 keysBloonNum = 4;

@@ -151,34 +151,37 @@ void init_bloon_protos() {
 }
 
 void init_tower_protos() {
+    Slice<ntower::TargetMode> standard_target_modes = make_global_slice<ntower::TargetMode>(ntower::TargetMode::CloseBloon, ntower::TargetMode::FirstBloon, ntower::TargetMode::StrongBloon, ntower::TargetMode::LastBloon, ntower::TargetMode::CloseBloon);
+    nproj::Proto* proj1d3p = &proj_protos[0];
+    nproj::Proto* proj3d1p = &proj_protos[1];
     tower_protos.push(ntower::Proto{
         .attacks = make_global_slice<ntower::Attack>(
             ntower::Attack{
-                .attack = new std::function([proj_proto = &proj_protos[0]](ntower::Tower* tower, nproj::Buff const& buff_context) {
+                .attack = new std::function([proj_proto = proj1d3p](ntower::Tower* tower, nproj::Buff const& buff_context) {
                     return simple_attack<6.0f>(tower, buff_context, proj_proto);
                 }),
-                .cooldown_ticks = 140
+                .cooldown_ticks = 100
             }
         ),
-        .target_modes = { .data = global_arena.push(ntower::TargetMode::CloseBloon), .size = 1 },
+        .target_modes = standard_target_modes,
         .sprite = { .mesh = meshes.monke, .texture = textures.monke, .state = visual::AnimationState::Spawn, .animation_duration_ref = 0, .animation_transition_ref = 0 }
         });
     tower_protos.push(ntower::Proto{
         .attacks = make_global_slice<ntower::Attack>(
         //    ntower::Attack{
-        //        .attack = new std::function([proj_proto = &proj_protos[0]](ntower::Tower* tower, nproj::Buff const& buff_context) {
+        //        .attack = new std::function([proj_proto = proj1d3p](ntower::Tower* tower, nproj::Buff const& buff_context) {
         //            return simple_attack<6.0f>(tower, buff_context, proj_proto);
         //        }),
-        //        .cooldown_ticks = 140
+        //        .cooldown_ticks = 100
         //    },
             ntower::Attack{
-                .attack = new std::function([proj_proto = &proj_protos[1]](ntower::Tower* tower, nproj::Buff const& buff_context) {
-                    return multishot_attack<4.0f, 1, glm::radians(120.0f)>(tower, buff_context, proj_proto);
+                .attack = new std::function([proj_proto = proj3d1p](ntower::Tower* tower, nproj::Buff const& buff_context) {
+                    return multishot_attack<4.0f, 3, glm::radians(90.0f)>(tower, buff_context, proj_proto);
                 }),
-                .cooldown_ticks = 300
+                .cooldown_ticks = 200
             }
         ),
-        .target_modes = { .data = global_arena.push(ntower::TargetMode::CloseBloon), .size = 1 },
+        .target_modes = standard_target_modes,
         .sprite = { .mesh = meshes.monke, .texture = textures.monke2, .state = visual::AnimationState::Spawn, .animation_duration_ref = 0, .animation_transition_ref = 0 }
         });
 }
