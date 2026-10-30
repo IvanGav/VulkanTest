@@ -38,7 +38,6 @@ namespace visual {
 		Animated instanciate() {
 			Animated a = *this;
 			a.animation_transition_at = data::update;
-			//a.state = AnimationState::Spawn;
 			return a;
 		}
 
