@@ -3,6 +3,7 @@
 #include "graphics/engine.h"
 #include "graphics/input.h"
 #include "graphics/data.h"
+#include "graphics/ui.h"
 #include "game/logic.h"
 
 #include "init_game.h"
@@ -224,22 +225,24 @@ void frameTick(Cam const& c) {
     engine::drawMesh(meshes.quad, 1); // ground
     engine::drawMesh(meshes.quad, bloons->list.size + projs->list.size); // bloons and projectiles
     engine::drawMesh(meshes.monke, towers->list.size); // monke
+    ui::drawUI();
     engine::endDraw();
 }
 
 int main() {
-    printd(std::numeric_limits<float>::is_iec559);
     initTestPrototypes();
 	engine::init();
     data::init();
     input::init();
+    ui::init();
     Cam c = { .pos = glm::vec3(-5.0f, 0.0f, 1.0f), .pitch = 0, .yaw = 0, .fov = glm::radians(45.0f), .viewWidth = 10.0f, .orthographic = false };
     while (!glfwWindowShouldClose(engine::window)) {
         frame_arena.reset();
         data::frameTick();
         input::frameTick();
-        captureReleaseMouse();
-        handleInput(c);
+        ui::createUI();
+        if (!ui::captureMouse) { captureReleaseMouse(); }
+        if (!ui::captureKeyboard) { handleInput(c); }
         frameTick(c);
         if (!gamePaused && data::timeSinceLastUpdate() >= (1.0 / data::TARGET_UPS)) {
             updateTick();
