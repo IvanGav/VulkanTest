@@ -222,3 +222,19 @@ Ok also. What are the tiebreakers on what projectile gets to damage the bloon fi
 The obvious answer is "who was created/spawned first". Another answer is "who has more damage/hp" - but still requires tiebreaking ugh.
 
 Damn. This is actually quite hard. Simply the fact that I need to *attribute* pops to the right towers makes it so *so* much harder.
+
+___
+
+Yapping:
+
+Raycasting. Is difficult. I don't quite know how I want to set it up. So the thing is. I need several separate things.
+I need to detect if my mouse is over a tower, and which tower.
+If not over a tower, I need to check where on the map it is.
+Both would be fine enough, if I didn't have a curveball. Height. BTD6 has elevation of areas. In orthographic view it's kind of masked slightly. But I'm fairly sure it uses true elevations.
+Honestly it's not even *as* much issue with raycasting (it still is though) as much as with perspective. Unless I look perfectly straight down, if projectiles are higher, they will be visibly missing the target, but actually hitting because they're infinitely tall.
+
+Also this: https://www.youtube.com/watch?v=5ySiuP9BzcM
+
+After watching several videos, it *may* be possible to set up a proper world/camera/raycasting system that doesn't look awful when moving camera. Tricky though. The original game heavily relies on the static camera perspective to author all sprites/models/animations to fit exactly to that perspective. And honestly I should probably do that too. Lock the camera and allow moving only in debug mode.
+
+Tower overlapping is another pain in the ass.

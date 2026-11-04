@@ -203,6 +203,12 @@ void frameTick(Cam const& c) {
     };
     Vec<engine::ShaderInstanceData> instanceData{ .arena = &frame_arena }; instanceData.reserve(1 + bloons->list.size + projs->list.size + towers->list.size);
     instanceData.push({ .model = glm::rotate(glm::scale(glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 0.0f, -2.0f)), glm::vec3(20.0f, 20.0f, 1.0f)), glm::radians(270.0f), glm::vec3(0.0f, 1.0f, 0.0f)), .texture = textures.ground });
+    for (ntower::Tower& tower : towers->list) {
+        instanceData.push({
+            .model = getAnimationModelMatrix(tower.sprite, tower.pos.x, tower.pos.y, tower.dir),
+            .texture = tower.sprite.texture
+            });
+    }
     for (nbloon::Bloon& bloon : *bloons) {
         instanceData.push({
             .model = getStaticModelMatrix(bloon.proto->sprite, bloon.pos.x, bloon.pos.y, bloon.dir, c),
@@ -215,16 +221,11 @@ void frameTick(Cam const& c) {
             .texture = proj.proto->sprite.texture,
             });
     }
-    for (ntower::Tower& tower : towers->list) {
-        instanceData.push({
-            .model = getAnimationModelMatrix(tower.sprite, tower.pos.x, tower.pos.y, tower.dir),
-            .texture = tower.sprite.texture
-            });
-    }
     engine::startDraw(uniformData, { .data = instanceData.data, .size = instanceData.size });
+    engine::startDrawMesh();
     engine::drawMesh(meshes.quad, 1); // ground
-    engine::drawMesh(meshes.quad, bloons->list.size + projs->list.size); // bloons and projectiles
     engine::drawMesh(meshes.monke, towers->list.size); // monke
+    engine::drawBillboard(meshes.quad, bloons->list.size + projs->list.size); // bloons and projectiles
     ui::drawUI();
     engine::endDraw();
 }

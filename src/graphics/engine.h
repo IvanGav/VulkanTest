@@ -142,8 +142,11 @@ VkSampler sampler = VK_NULL_HANDLE;
 VkDescriptorSetLayout texturesDescriptorSetLayout = VK_NULL_HANDLE;
 VkDescriptorSet texturesDescriptorSet = VK_NULL_HANDLE;
 VkDescriptorPool descriptorPool = VK_NULL_HANDLE;
-VkPipeline pipeline = VK_NULL_HANDLE;
-VkPipelineLayout pipelineLayout = VK_NULL_HANDLE;
+/* pipelines */
+VkPipeline pipeline3d = VK_NULL_HANDLE;
+VkPipelineLayout pipelineLayout3d = VK_NULL_HANDLE;
+VkPipeline pipelineBB = VK_NULL_HANDLE; // BB = BillBoard
+VkPipelineLayout pipelineLayoutBB = VK_NULL_HANDLE; // BB = BillBoard
 /* size = number of swapchain images */
 std::vector<VkImage> swapchainImages = {};
 std::vector<VkImageView> swapchainImageViews = {};
@@ -690,19 +693,17 @@ void createDescriptorSetsForTextures() {
     vkUpdateDescriptorSets(device, 1, &writeDescSet, 0, nullptr);
 }
 
-// create `pipeline`, `pipelineLayout`
-void createGraphicsPipeline() {
-    std::vector<u8> vertShaderCode = readFile("src/shader/vert.spv");
-    std::vector<u8> fragShaderCode = readFile("src/shader/frag.spv");
+// All pipelines get access to `VkDescriptorSetLayout texturesDescriptorSetLayout;`, `VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST`
+void createGraphicsPipeline(VkPipeline& pipeline, VkPipelineLayout& layout, Slice<u8> vertShaderCode, Slice<u8> fragShaderCode) {
     VkShaderModuleCreateInfo vertShaderCI{
         .sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
-        .codeSize = (u32)vertShaderCode.size(),
-        .pCode = (u32*)vertShaderCode.data(),
+        .codeSize = (u32)vertShaderCode.size,
+        .pCode = (u32*)vertShaderCode.data,
     };
     VkShaderModuleCreateInfo fragShaderCI{
         .sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
-        .codeSize = (u32)fragShaderCode.size(),
-        .pCode = (u32*)fragShaderCode.data(),
+        .codeSize = (u32)fragShaderCode.size,
+        .pCode = (u32*)fragShaderCode.data,
     };
     VkPipelineShaderStageCreateInfo vertShaderStageCI{
         .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
@@ -728,7 +729,7 @@ void createGraphicsPipeline() {
         .pushConstantRangeCount = 1,
         .pPushConstantRanges = &pushConstantRange
     };
-    success(vkCreatePipelineLayout(device, &pipelineLayoutCI, nullptr, &pipelineLayout), "Could not create pipeline layout");
+    success(vkCreatePipelineLayout(device, &pipelineLayoutCI, nullptr, &layout), "Could not create pipeline layout");
     // Describe the `struct Vertex`
     VkVertexInputBindingDescription vertexBinding{
          .binding = 0,
@@ -805,9 +806,19 @@ void createGraphicsPipeline() {
         .pDepthStencilState = &depthStencilStateCI,
         .pColorBlendState = &colorBlendStateCI,
         .pDynamicState = &dynamicStateCI,
-        .layout = pipelineLayout
+        .layout = layout
     };
     success(vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &pipelineCI, nullptr, &pipeline), "Could not create graphics pipeline");
+}
+
+// create `pipeline3d`, `pipelineLayout3d`, `pipelineBB`, `pipelineLayoutBB`
+void createGraphicsPipelines() {
+    std::vector<u8> vertShaderCode3d = readFile("src/shader/vert_3d.spv");
+    std::vector<u8> fragShaderCode3d = readFile("src/shader/frag_3d.spv");
+    createGraphicsPipeline(pipeline3d, pipelineLayout3d, Slice<u8>::from(vertShaderCode3d), Slice<u8>::from(fragShaderCode3d));
+    std::vector<u8> vertShaderCodeBB = readFile("src/shader/vert_billboard.spv");
+    std::vector<u8> fragShaderCodeBB = readFile("src/shader/frag_billboard.spv");
+    createGraphicsPipeline(pipelineBB, pipelineLayoutBB, Slice<u8>::from(vertShaderCodeBB), Slice<u8>::from(fragShaderCodeBB));
 }
 
 void recreateSwapchain() {
@@ -901,7 +912,7 @@ void init() {
         createTexture(path);
     }
     createDescriptorSetsForTextures();
-    createGraphicsPipeline();
+    createGraphicsPipelines();
     memcpy(vertexBuffer.allocationInfo.pMappedData, vertices.data(), vertices.size() * sizeof(Vertex));
     memcpy(indexBuffer.allocationInfo.pMappedData, indices.data(), indices.size() * sizeof(u16));
     initialized = true;
@@ -910,8 +921,10 @@ void init() {
 void cleanup() {
     vkDeviceWaitIdle(device);
     ui::cleanup();
-    vkDestroyPipeline(device, pipeline, nullptr);
-    vkDestroyPipelineLayout(device, pipelineLayout, nullptr);
+    vkDestroyPipeline(device, pipeline3d, nullptr);
+    vkDestroyPipeline(device, pipelineBB, nullptr);
+    vkDestroyPipelineLayout(device, pipelineLayout3d, nullptr);
+    vkDestroyPipelineLayout(device, pipelineLayoutBB, nullptr);
     vkDestroyDescriptorPool(device, descriptorPool, nullptr);
     vkDestroyDescriptorSetLayout(device, texturesDescriptorSetLayout, nullptr);
     for (ImageRef tex : textures) {
@@ -1032,20 +1045,38 @@ void startDraw(ShaderUniformData& uniformData, Slice<ShaderInstanceData> instanc
     vkCmdSetViewport(cb, 0, 1, &vp);
     VkRect2D scissor{ .extent = swapchainExtent };
     vkCmdSetScissor(cb, 0, 1, &scissor);
-    vkCmdBindPipeline(cb, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
-    vkCmdBindDescriptorSets(cb, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &texturesDescriptorSet, 0, nullptr);
+
     VkDeviceSize zeroOffset = 0;
     vkCmdBindVertexBuffers(cb, 0, 1, &vertexBuffer.buffer, &zeroOffset);
     vkCmdBindIndexBuffer(cb, indexBuffer.buffer, zeroOffset, VK_INDEX_TYPE_UINT16);
-    vkCmdPushConstants(cb, pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(VkDeviceAddress), &shaderBuffers[frameIndex].deviceAddress);
 
     // Announce start of draw
     activeDrawCommandBuffer = cb;
     instanceCount = 0;
 }
 
+void startDrawMesh() {
+    assert(activeDrawCommandBuffer != VK_NULL_HANDLE);
+    VkCommandBuffer cb = activeDrawCommandBuffer;
+    vkCmdBindPipeline(cb, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline3d);
+    vkCmdBindDescriptorSets(cb, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout3d, 0, 1, &texturesDescriptorSet, 0, nullptr);
+    vkCmdPushConstants(cb, pipelineLayout3d, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(VkDeviceAddress), &shaderBuffers[frameIndex].deviceAddress);
+}
+
 void drawMesh(MeshRef mesh, u32 instances) {
     assert(activeDrawCommandBuffer != VK_NULL_HANDLE);
+    vkCmdDrawIndexed(activeDrawCommandBuffer, mesh.size, instances, mesh.ioff, 0, instanceCount);
+    instanceCount += instances;
+}
+
+// Call after all meshes have been drawn
+void drawBillboard(MeshRef mesh, u32 instances) {
+    assert(activeDrawCommandBuffer != VK_NULL_HANDLE);
+    VkCommandBuffer cb = activeDrawCommandBuffer;
+    vkCmdBindPipeline(cb, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineBB);
+    vkCmdBindDescriptorSets(cb, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayoutBB, 0, 1, &texturesDescriptorSet, 0, nullptr);
+    vkCmdPushConstants(cb, pipelineLayoutBB, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(VkDeviceAddress), &shaderBuffers[frameIndex].deviceAddress);
+
     vkCmdDrawIndexed(activeDrawCommandBuffer, mesh.size, instances, mesh.ioff, 0, instanceCount);
     instanceCount += instances;
 }
