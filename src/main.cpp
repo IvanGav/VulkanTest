@@ -68,15 +68,7 @@ glm::mat4 getAnimationModelMatrix(visual::Animated const& animation, f32 x, f32 
     );
 }
 
-glm::mat4 getStaticModelMatrix(visual::Static const& sprite, f32 x, f32 y, f32 dir, Cam const& cam) {
-    if (sprite.is_billboard()) {
-        return glm::rotate(glm::rotate(glm::rotate(glm::translate(glm::mat4(1.0f), glm::vec3(x, y, 0.0f)), cam.yaw, glm::vec3(0.0f, 0.0f, 1.0f)), -cam.pitch + glm::radians(180.0f), glm::vec3(0.0f, 1.0f, 0.0f)), glm::radians(180.0f), glm::vec3(1.0f, 0.0f, 0.0f));
-    } else {
-        return glm::rotate(glm::rotate(glm::translate(glm::mat4(1.0f), glm::vec3(x, y, 0.0f)), glm::radians(270.0f), glm::vec3(0.0f, 1.0f, 0.0f)), dir, glm::vec3(1.0f, 0.0f, 0.0f));
-    }
-}
-
-glm::vec2 raycast(f32 screenX, f32 screenY, Cam& cam, f32 zIntercept) {
+glm::vec2 raycast(f32 screenX, f32 screenY, Cam const& cam, f32 zIntercept) {
     const f32 epsilon = 0.0001f;
     const glm::vec3 normal = glm::vec3(0.0f, 0.0f, 1.0f);
     glm::vec3 rayDir;
@@ -116,7 +108,7 @@ glm::vec2 raycast(f32 screenX, f32 screenY, Cam& cam, f32 zIntercept) {
 
 bool mouseCaptured = false;
 bool gamePaused = false;
-void handleInput(Cam& c) {
+void handleKeyboardInput(Cam& c) {
     if (input::keyDown(GLFW_KEY_W)) {
         c.pos += c.dirForward() * 0.2f * f32(data::timeDelta * 100.0);
     }
@@ -163,16 +155,11 @@ void handleInput(Cam& c) {
         std::cout << "______________" << std::endl;
     }
     /* gameplay related inputs */
-    constexpr u32 keysMonkeyNum = 2;
-    u32 keysMonkey[keysMonkeyNum] = { GLFW_KEY_Z, GLFW_KEY_X };
+    constexpr u32 keysMonkeyNum = 3;
+    u32 keysMonkey[keysMonkeyNum] = { GLFW_KEY_Z, GLFW_KEY_X, GLFW_KEY_C };
     for (u32 i = 0; i < keysMonkeyNum; i++) {
         if (input::keyPressed(keysMonkey[i])) {
-            if (mouseCaptured) {
-                towers->add(ntower::Tower::spawn(&tower_protos[i], { c.pos.x, c.pos.y }));
-            } else {
-                glm::vec2 pos = raycast(input::mousePos.x, input::mousePos.y, c, 0.0f);
-                towers->add(ntower::Tower::spawn(&tower_protos[i], { pos.x, pos.y }));
-            }
+            ui::monkeySelected = ui::monkeySelected == i ? U32_MAX : i;
         }
     }
     constexpr u32 keysBloonNum = 4;
@@ -182,16 +169,24 @@ void handleInput(Cam& c) {
             bloons->add(nbloon::Bloon::spawn(&bloon_protos[i], &path));
         }
     }
-}
-
-void captureReleaseMouse() {
+    // unfocus
     if (input::keyPressed(GLFW_KEY_ESCAPE)) {
         glfwSetInputMode(engine::window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
         mouseCaptured = false;
     }
+}
+
+void handleMouseInput(Cam const& c) {
     if (input::mouseButtonPressed(GLFW_MOUSE_BUTTON_LEFT)) {
-        glfwSetInputMode(engine::window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
-        mouseCaptured = true;
+        if (ui::monkeySelected == U32_MAX) {
+            // focus window
+            glfwSetInputMode(engine::window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+            mouseCaptured = true;
+        } else {
+            glm::vec2 pos = raycast(input::mousePos.x, input::mousePos.y, c, 0.0f);
+            towers->add(ntower::Tower::spawn(&tower_protos[ui::monkeySelected], { pos.x, pos.y }));
+            ui::monkeySelected = U32_MAX;
+        }
     }
 }
 
@@ -199,33 +194,54 @@ void frameTick(Cam const& c) {
     engine::ShaderUniformData uniformData = {
         .proj = c.projMat(),
         .view = c.viewMat(),
-        .camPosition = c.pos
+        .camPosition = c.pos,
+        .camLookDir = c.dirLook(),
+        .isOrtho = c.orthographic
     };
-    Vec<engine::ShaderInstanceData> instanceData{ .arena = &frame_arena }; instanceData.reserve(1 + bloons->list.size + projs->list.size + towers->list.size);
+    Vec<engine::ShaderInstanceData> instanceData{ .arena = &frame_arena }; instanceData.reserve(1 + towers->list.size + 1);
+    Vec<engine::ShaderInstanceDataBB> instanceDataBB{ .arena = &frame_arena }; instanceDataBB.reserve(bloons->list.size + projs->list.size);
+    // the ground
     instanceData.push({ .model = glm::rotate(glm::scale(glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 0.0f, -2.0f)), glm::vec3(20.0f, 20.0f, 1.0f)), glm::radians(270.0f), glm::vec3(0.0f, 1.0f, 0.0f)), .texture = textures.ground });
+    // towers
     for (ntower::Tower& tower : towers->list) {
         instanceData.push({
             .model = getAnimationModelMatrix(tower.sprite, tower.pos.x, tower.pos.y, tower.dir),
             .texture = tower.sprite.texture
-            });
+        });
     }
-    for (nbloon::Bloon& bloon : *bloons) {
+    // preview tower
+    bool drawPreviewMonkey = false;
+    if (ui::monkeySelected != U32_MAX && !ui::captureMouse) {
+        drawPreviewMonkey = true;
+        glm::vec2 pos = raycast(input::mousePos.x, input::mousePos.y, c, 0.0f);
+        visual::Animated sprite = tower_protos[ui::monkeySelected].sprite;
+        sprite.state = visual::AnimationState::Idle;
         instanceData.push({
-            .model = getStaticModelMatrix(bloon.proto->sprite, bloon.pos.x, bloon.pos.y, bloon.dir, c),
+            .model = getAnimationModelMatrix(sprite, pos.x, pos.y, c.yaw + glm::radians(180.0f)),
+            .texture = sprite.texture
+        });
+    }
+    // billboards
+    for (nbloon::Bloon& bloon : *bloons) {
+        instanceDataBB.push({
+            .position = glm::vec3(bloon.pos.x, bloon.pos.y, 0.0f),
+            .size = 1.5f,
             .texture = bloon.proto->sprite.texture,
-            });
+        });
     }
     for (nproj::Projectile& proj : *projs) {
-        instanceData.push({
-            .model = getStaticModelMatrix(proj.proto->sprite, proj.pos.x, proj.pos.y, proj.dir, c),
+        instanceDataBB.push({
+            .position = glm::vec3(proj.pos.x, proj.pos.y, 0.0f),
+            .size = 1.0f,
             .texture = proj.proto->sprite.texture,
-            });
+        });
     }
-    engine::startDraw(uniformData, { .data = instanceData.data, .size = instanceData.size });
-    engine::startDrawMesh();
+    engine::startDraw(uniformData);
+    engine::startDrawMesh(instanceData.full_slice());
     engine::drawMesh(meshes.quad, 1); // ground
-    engine::drawMesh(meshes.monke, towers->list.size); // monke
-    engine::drawBillboard(meshes.quad, bloons->list.size + projs->list.size); // bloons and projectiles
+    engine::drawMesh(meshes.monke, towers->list.size + drawPreviewMonkey); // monke
+    engine::endDrawMesh();
+    engine::drawBillboard(instanceDataBB.full_slice()); // bloons and projectiles
     ui::drawUI();
     engine::endDraw();
 }
@@ -242,8 +258,8 @@ int main() {
         data::frameTick();
         input::frameTick();
         ui::createUI();
-        if (!ui::captureMouse) { captureReleaseMouse(); }
-        if (!ui::captureKeyboard) { handleInput(c); }
+        if (!ui::captureMouse) { handleMouseInput(c); }
+        if (!ui::captureKeyboard) { handleKeyboardInput(c); }
         frameTick(c);
         if (!gamePaused && data::timeSinceLastUpdate() >= (1.0 / data::TARGET_UPS)) {
             updateTick();

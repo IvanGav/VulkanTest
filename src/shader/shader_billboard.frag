@@ -6,20 +6,27 @@ struct UniformData {
     mat4 proj;
     mat4 view;
     vec3 camPosition;
+    vec3 camLookDir;
+    bool camOrtho;
 };
 
 struct InstanceData {
-    mat4 model;
+    vec3 pos;
+    float size;
     uint texture;
 };
 
-layout(buffer_reference, std430, buffer_reference_align = 16) buffer ShaderData {
+layout(buffer_reference, std430, buffer_reference_align = 16) buffer UniformBuffer {
     UniformData u;
+};
+
+layout(buffer_reference, std430, buffer_reference_align = 16) buffer InstanceBuffer {
     InstanceData i[];
 };
 
 layout(push_constant) uniform PushConstants {
-    ShaderData data;
+    UniformBuffer u;
+    InstanceBuffer i;
 } pc;
 
 layout(binding = 0) uniform sampler2D textures[];

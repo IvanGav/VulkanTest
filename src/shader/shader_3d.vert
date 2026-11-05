@@ -5,6 +5,8 @@ struct UniformData {
     mat4 proj;
     mat4 view;
     vec3 camPosition;
+    vec3 camLookDir;
+    bool camOrtho;
 };
 
 struct InstanceData {
@@ -12,13 +14,17 @@ struct InstanceData {
     uint texture;
 };
 
-layout(buffer_reference, std430, buffer_reference_align = 16) buffer ShaderData {
+layout(buffer_reference, std430, buffer_reference_align = 16) buffer UniformBuffer {
     UniformData u;
+};
+
+layout(buffer_reference, std430, buffer_reference_align = 16) buffer InstanceBuffer {
     InstanceData i[];
 };
 
 layout(push_constant) uniform PushConstants {
-    ShaderData data;
+    UniformBuffer u;
+    InstanceBuffer i;
 } pc;
 
 layout(location = 0) in vec3 inPosition;
@@ -31,11 +37,11 @@ layout(location = 2) out vec3 outNormal;
 layout(location = 3) flat out uint textureIndex;
 
 void main() {
-    mat4 modelMat = pc.data.i[gl_InstanceIndex].model;
+    mat4 modelMat = pc.i.i[gl_InstanceIndex].model;
     vec4 worldPosition = modelMat * vec4(inPosition, 1.0);
-    gl_Position = pc.data.u.proj * pc.data.u.view * worldPosition;
+    gl_Position = pc.u.u.proj * pc.u.u.view * worldPosition;
     outPosition = worldPosition.xyz;
     outUV = inUV;
     outNormal = (modelMat * vec4(inNormal, 0.0)).xyz;
-    textureIndex = pc.data.i[gl_InstanceIndex].texture;
+    textureIndex = pc.i.i[gl_InstanceIndex].texture;
 }

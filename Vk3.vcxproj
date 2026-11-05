@@ -181,6 +181,7 @@
     <ClInclude Include="src\game\visual.h" />
     <ClInclude Include="src\graphics\data.h" />
     <ClInclude Include="src\graphics\engine.h" />
+    <ClInclude Include="src\graphics\gizmos.h" />
     <ClInclude Include="src\graphics\input.h" />
     <ClInclude Include="src\graphics\ui.h" />
     <ClInclude Include="src\imgui\imconfig.h" />

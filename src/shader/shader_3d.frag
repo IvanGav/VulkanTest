@@ -6,6 +6,8 @@ struct UniformData {
     mat4 proj;
     mat4 view;
     vec3 camPosition;
+    vec3 camLookDir;
+    bool camOrtho;
 };
 
 struct InstanceData {
@@ -13,13 +15,17 @@ struct InstanceData {
     uint texture;
 };
 
-layout(buffer_reference, std430, buffer_reference_align = 16) buffer ShaderData {
+layout(buffer_reference, std430, buffer_reference_align = 16) buffer UniformBuffer {
     UniformData u;
+};
+
+layout(buffer_reference, std430, buffer_reference_align = 16) buffer InstanceBuffer {
     InstanceData i[];
 };
 
 layout(push_constant) uniform PushConstants {
-    ShaderData data;
+    UniformBuffer u;
+    InstanceBuffer i;
 } pc;
 
 layout(binding = 0) uniform sampler2D textures[];
@@ -53,7 +59,7 @@ void main() {
     float specular = 0.0;
 
     if (lambertian > 0.0) {
-        vec3 viewDir = normalize(pc.data.u.camPosition - inPosition);
+        vec3 viewDir = normalize(pc.u.u.camPosition - inPosition);
         vec3 halfDir = normalize(lightDir + viewDir);
         float specAngle = max(dot(halfDir, normal), 0.0);
         specular = pow(specAngle, shininess);

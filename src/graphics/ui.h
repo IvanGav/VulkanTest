@@ -69,6 +69,17 @@ void init() {
     ImGui::PushFont(io.Fonts->AddFontFromFileTTF("./asset/JetBrainsMono-Regular.ttf"));
 }
 
+u32 monkeySelected = U32_MAX;
+void monkeyButton(u32 index, const char* name) {
+    if (monkeySelected == index) {
+        ImGui::PushStyleColor(0, ImVec4(0.3, 1.0, 0.3, 1.0));
+        if (ImGui::Button(name)) { monkeySelected = U32_MAX; }
+        ImGui::PopStyleColor();
+    } else {
+        if (ImGui::Button(name)) { monkeySelected = index; }
+    }
+}
+
 bool show_demo_window = false;
 i32 counter = 0;
 f32 f = 0.0f;
@@ -77,7 +88,6 @@ void createUI() {
     ImGui_ImplVulkan_NewFrame();
     ImGui_ImplGlfw_NewFrame();
     ImGui::NewFrame();
-
     if (show_demo_window) { ImGui::ShowDemoWindow(&show_demo_window); }
     // main ui window
     {
@@ -86,15 +96,22 @@ void createUI() {
         ImGui::Text("Bloons");
         ImGui::Checkbox("Demo Window", &show_demo_window);
 
-        ImGui::SliderFloat("float", &f, 0.0f, 1.0f);
-        ImGui::ColorEdit3("clear color", col);
+        //ImGui::SliderFloat("float", &f, 0.0f, 1.0f);
+        //ImGui::ColorEdit3("clear color", col);
 
-        if (ImGui::Button("Button")) { counter++; }
-        ImGui::SameLine();
-        ImGui::Text("counter = %d", counter);
+        //if (ImGui::Button("Button")) { counter++; }
+        //ImGui::SameLine();
+        //ImGui::Text("counter = %d", counter);
 
         ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / data::fps, data::fps);
+
+        monkeyButton(0, "000 Dart");
+        monkeyButton(1, "Double Damage Minigun");
+        monkeyButton(2, "Tripple Shot w/ Lead Popping");
         ImGui::End();
+    }
+    if (ImGui::IsKeyPressed(ImGuiKey_Escape)) {
+        ImGui::SetWindowFocus(NULL);
     }
     ImGui::Render();
 

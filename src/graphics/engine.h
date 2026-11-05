@@ -45,8 +45,13 @@ namespace ui {
 
 namespace engine {
 
-// TODO
+// TODO 10k bloons allowed on the screen at a time
 #define MAGIC_NUMBER 1024 * 10
+
+struct PushConstantsData {
+    VkDeviceAddress uniform;
+    VkDeviceAddress instance;
+};
 
 // Ensure that the result is `VK_SUCCESS`; raise an unrecoverable error when it's not
 void success(VkResult result, std::string errorMessage) {
@@ -88,13 +93,22 @@ struct alignas(16) ShaderUniformData {
     glm::mat4 proj;
     glm::mat4 view;
     glm::vec3 camPosition;
-    u32 pad1[1];
+    u32 pad0[1];
+    glm::vec3 camLookDir;
+    bool isOrtho;
 };
 
 struct alignas(16) ShaderInstanceData {
     glm::mat4 model;
     TextureRef texture;
-    u32 pad1[3];
+    u32 pad0[3];
+};
+
+struct alignas(16) ShaderInstanceDataBB {
+    glm::vec3 position;
+    f32 size;
+    TextureRef texture;
+    u32 pad0[2];
 };
 
 /* data */
@@ -112,6 +126,7 @@ u32 frameIndex = 0;
 u32 imageIndex = 0;
 u32 instanceCount = 0;
 VkCommandBuffer activeDrawCommandBuffer = VK_NULL_HANDLE;
+u32 curBufferBytesSize = 0;
 bool initialized = false;
 
 /* glfw */
@@ -147,6 +162,8 @@ VkPipeline pipeline3d = VK_NULL_HANDLE;
 VkPipelineLayout pipelineLayout3d = VK_NULL_HANDLE;
 VkPipeline pipelineBB = VK_NULL_HANDLE; // BB = BillBoard
 VkPipelineLayout pipelineLayoutBB = VK_NULL_HANDLE; // BB = BillBoard
+VkPipeline pipelineGizmos = VK_NULL_HANDLE;
+VkPipelineLayout pipelineLayoutGizmos = VK_NULL_HANDLE;
 /* size = number of swapchain images */
 std::vector<VkImage> swapchainImages = {};
 std::vector<VkImageView> swapchainImageViews = {};
@@ -527,7 +544,7 @@ void createDepthImage() {
 }
 
 // create `vertexBuffer`, `indexBuffer`, `shaderBuffers`
-void createBuffers() {
+void createBuffers(u32 shaderBufferSize) {
     VmaAllocationCreateInfo bufferAllocCI{
         .flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT | VMA_ALLOCATION_CREATE_HOST_ACCESS_ALLOW_TRANSFER_INSTEAD_BIT | VMA_ALLOCATION_CREATE_MAPPED_BIT,
         .usage = VMA_MEMORY_USAGE_AUTO
@@ -550,7 +567,7 @@ void createBuffers() {
     for (u32 i = 0; i < framesInFlight; i++) {
         VkBufferCreateInfo uBufferCI{
             .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
-            .size = sizeof(ShaderUniformData) + MAGIC_NUMBER,
+            .size = shaderBufferSize,
             .usage = VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT
         };
         success(vmaCreateBuffer(allocator, &uBufferCI, &bufferAllocCI, &shaderBuffers[i].buffer, &shaderBuffers[i].allocation, &shaderBuffers[i].allocationInfo), "Could not allocate buffer");
@@ -720,7 +737,7 @@ void createGraphicsPipeline(VkPipeline& pipeline, VkPipelineLayout& layout, Slic
 
     VkPushConstantRange pushConstantRange{
         .stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
-        .size = sizeof(VkDeviceAddress)
+        .size = sizeof(PushConstantsData) // uniform + instance data pointers
     };
     VkPipelineLayoutCreateInfo pipelineLayoutCI{
         .sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
@@ -904,7 +921,7 @@ void init() {
     initVma();
     createSwapchain();
     createDepthImage();
-    createBuffers();
+    createBuffers(sizeof(ShaderUniformData) + sizeof(ShaderInstanceData) * MAGIC_NUMBER);
     createSyncStructures();
     createCommandBuffers();
     createSamplers();
@@ -961,7 +978,7 @@ void cleanup() {
     glfwTerminate();
 }
 
-void startDraw(ShaderUniformData& uniformData, Slice<ShaderInstanceData> instanceData) {
+void startDraw(ShaderUniformData const& uniformData) {
     assert(activeDrawCommandBuffer == VK_NULL_HANDLE);
     success(vkWaitForFences(device, 1, &fences[frameIndex], VK_TRUE, UINT64_MAX));
     imageIndex = U32_MAX;
@@ -971,10 +988,6 @@ void startDraw(ShaderUniformData& uniformData, Slice<ShaderInstanceData> instanc
         else { success(result, "Could not acquire swapchain image"); }
     }
     success(vkResetFences(device, 1, &fences[frameIndex]));
-
-    u8* buf = (u8*)(shaderBuffers[frameIndex].allocationInfo.pMappedData);
-    memcpy(buf, &uniformData, sizeof(ShaderUniformData));
-    memcpy(buf + sizeof(ShaderUniformData), instanceData.data, instanceData.size * sizeof(ShaderInstanceData));
 
     // Render
     VkCommandBuffer cb = commandBuffers[frameIndex];
@@ -1052,33 +1065,62 @@ void startDraw(ShaderUniformData& uniformData, Slice<ShaderInstanceData> instanc
 
     // Announce start of draw
     activeDrawCommandBuffer = cb;
-    instanceCount = 0;
+    curBufferBytesSize = 0;
+    instanceCount = U32_MAX;
+
+    u8* buf = (u8*)(shaderBuffers[frameIndex].allocationInfo.pMappedData);
+    memcpy(buf, &uniformData, sizeof(ShaderUniformData));
+    curBufferBytesSize += sizeof(ShaderUniformData);
 }
 
-void startDrawMesh() {
+void startDrawMesh(Slice<ShaderInstanceData> instanceData) {
     assert(activeDrawCommandBuffer != VK_NULL_HANDLE);
+    assert(instanceCount == U32_MAX);
+
+    VkDeviceAddress gpuBuf = shaderBuffers[frameIndex].deviceAddress;
+    PushConstantsData pushConstants = { .uniform = gpuBuf, .instance = gpuBuf + curBufferBytesSize };
+
+    u8* buf = (u8*)(shaderBuffers[frameIndex].allocationInfo.pMappedData);
+    memcpy(buf + curBufferBytesSize, instanceData.data, instanceData.size * sizeof(ShaderInstanceData));
+    curBufferBytesSize += instanceData.size * sizeof(ShaderInstanceData);
+
     VkCommandBuffer cb = activeDrawCommandBuffer;
     vkCmdBindPipeline(cb, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline3d);
     vkCmdBindDescriptorSets(cb, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout3d, 0, 1, &texturesDescriptorSet, 0, nullptr);
-    vkCmdPushConstants(cb, pipelineLayout3d, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(VkDeviceAddress), &shaderBuffers[frameIndex].deviceAddress);
+    vkCmdPushConstants(cb, pipelineLayout3d, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(PushConstantsData), &pushConstants);
+
+    instanceCount = 0;
 }
 
 void drawMesh(MeshRef mesh, u32 instances) {
     assert(activeDrawCommandBuffer != VK_NULL_HANDLE);
+    assert(instanceCount != U32_MAX);
     vkCmdDrawIndexed(activeDrawCommandBuffer, mesh.size, instances, mesh.ioff, 0, instanceCount);
     instanceCount += instances;
 }
 
+void endDrawMesh() {
+    assert(instanceCount != U32_MAX);
+    instanceCount = U32_MAX;
+}
+
 // Call after all meshes have been drawn
-void drawBillboard(MeshRef mesh, u32 instances) {
+void drawBillboard(Slice<ShaderInstanceDataBB> instanceData) {
     assert(activeDrawCommandBuffer != VK_NULL_HANDLE);
+
+    VkDeviceAddress gpuBuf = shaderBuffers[frameIndex].deviceAddress;
+    PushConstantsData pushConstants = { .uniform = gpuBuf, .instance = gpuBuf + curBufferBytesSize };
+
+    u8* buf = (u8*)(shaderBuffers[frameIndex].allocationInfo.pMappedData);
+    memcpy(buf + curBufferBytesSize, instanceData.data, instanceData.size * sizeof(ShaderInstanceDataBB));
+    curBufferBytesSize += instanceData.size * sizeof(ShaderInstanceDataBB);
+
     VkCommandBuffer cb = activeDrawCommandBuffer;
     vkCmdBindPipeline(cb, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineBB);
     vkCmdBindDescriptorSets(cb, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayoutBB, 0, 1, &texturesDescriptorSet, 0, nullptr);
-    vkCmdPushConstants(cb, pipelineLayoutBB, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(VkDeviceAddress), &shaderBuffers[frameIndex].deviceAddress);
+    vkCmdPushConstants(cb, pipelineLayoutBB, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(PushConstantsData), &pushConstants);
 
-    vkCmdDrawIndexed(activeDrawCommandBuffer, mesh.size, instances, mesh.ioff, 0, instanceCount);
-    instanceCount += instances;
+    vkCmdDrawIndexed(activeDrawCommandBuffer, 6, instanceData.size, 0, 0, 0);
 }
 
 void endDraw() {
