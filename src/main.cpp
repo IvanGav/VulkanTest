@@ -68,6 +68,11 @@ glm::mat4 getAnimationModelMatrix(visual::Animated const& animation, f32 x, f32 
     );
 }
 
+glm::mat4 getStaticModelMatrix(visual::Static const& sprite, f32 x, f32 y, f32 dir, Cam const& cam) {
+    if (sprite.is_billboard()) { panic; }
+    return glm::rotate(glm::translate(glm::mat4(1.0f), glm::vec3(x, y, 0.0f)), dir - glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+}
+
 glm::vec2 raycast(f32 screenX, f32 screenY, Cam const& cam, f32 zIntercept) {
     const f32 epsilon = 0.0001f;
     const glm::vec3 normal = glm::vec3(0.0f, 0.0f, 1.0f);
@@ -176,8 +181,8 @@ void handleKeyboardInput(Cam& c) {
             ui::monkeySelected = ui::monkeySelected == i ? U32_MAX : i;
         }
     }
-    constexpr u32 keysBloonNum = 4;
-    u32 keysBloon[keysBloonNum] = { GLFW_KEY_1, GLFW_KEY_2, GLFW_KEY_3, GLFW_KEY_4 };
+    constexpr u32 keysBloonNum = 5;
+    u32 keysBloon[keysBloonNum] = { GLFW_KEY_1, GLFW_KEY_2, GLFW_KEY_3, GLFW_KEY_4, GLFW_KEY_5 };
     for (u32 i = 0; i < keysBloonNum; i++) {
         if (input::keyPressed(keysBloon[i])) {
             bloons->add(nbloon::Bloon::spawn(&bloon_protos[i], &path));
@@ -224,19 +229,46 @@ void frameTick(Cam const& c) {
     };
     Vec<engine::ShaderInstanceData> instanceData{ .arena = &frame_arena }; instanceData.reserve(1 + towers->list.size + 1);
     Vec<engine::ShaderInstanceDataBB> instanceDataBB{ .arena = &frame_arena }; instanceDataBB.reserve(bloons->list.size + projs->list.size);
+    Vec<P<engine::MeshRef, u32>> meshList{ .arena = &frame_arena }; // limitation: towers, bloons and other may not use the same meshes efficiently; which is fine, really
+
     // the ground
     instanceData.push({ .model = glm::rotate(glm::scale(glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 0.0f, -2.0f)), glm::vec3(20.0f, 20.0f, 1.0f)), glm::radians(270.0f), glm::vec3(0.0f, 1.0f, 0.0f)), .texture = textures.ground });
+    meshList.push({ meshes.quad, 1 });
+
+    // sort bloons
+    Vec<nbloon::Bloon> bloonsSorted = bloons->list.clone(&frame_arena);
+    std::sort(bloonsSorted.begin(), bloonsSorted.end(), [](nbloon::Bloon const& first, nbloon::Bloon const& second) { return first.proto->sprite.mesh.ioff < second.proto->sprite.mesh.ioff; }); // TODO sort better probably; for now is fine
+    for (nbloon::Bloon const& b : bloonsSorted) {
+        if (b.proto->sprite.is_billboard()) {
+            instanceDataBB.push({
+                .position = glm::vec3(b.pos.x, b.pos.y, 0.0f),
+                .size = 1.5f,
+                .texture = b.proto->sprite.texture,
+            });
+        } else {
+            if (meshList.size == 0 || b.proto->sprite.mesh != meshList.back().a) {
+                meshList.push({ b.proto->sprite.mesh, 0 });
+            }
+            meshList.back().b += 1;
+            instanceData.push({
+                .model = getStaticModelMatrix(b.proto->sprite, b.pos.x, b.pos.y, b.dir, c),
+                .texture = b.proto->sprite.texture,
+            });
+        }
+    }
+
     // towers
+    meshList.push({ meshes.monke, 0 });
     for (ntower::Tower& tower : towers->list) {
+        meshList.back().b += 1;
         instanceData.push({
             .model = getAnimationModelMatrix(tower.sprite, tower.pos.x, tower.pos.y, tower.dir),
             .texture = tower.sprite.texture
         });
     }
     // preview tower
-    bool drawPreviewMonkey = false;
     if (ui::monkeySelected != U32_MAX && !ui::captureMouse) {
-        drawPreviewMonkey = true;
+        meshList.back().b += 1;
         glm::vec2 pos = raycast(input::mousePos.x, input::mousePos.y, c, 0.0f);
         visual::Animated sprite = tower_protos[ui::monkeySelected].sprite;
         sprite.state = visual::AnimationState::Idle;
@@ -245,14 +277,16 @@ void frameTick(Cam const& c) {
             .texture = sprite.texture
         });
     }
+
+    //for (nbloon::Bloon& bloon : *bloons) {
+    //    instanceDataBB.push({
+    //        .position = glm::vec3(bloon.pos.x, bloon.pos.y, 0.0f),
+    //        .size = 1.5f,
+    //        .texture = bloon.proto->sprite.texture,
+    //    });
+    //}
+    
     // billboards
-    for (nbloon::Bloon& bloon : *bloons) {
-        instanceDataBB.push({
-            .position = glm::vec3(bloon.pos.x, bloon.pos.y, 0.0f),
-            .size = 1.5f,
-            .texture = bloon.proto->sprite.texture,
-        });
-    }
     for (nproj::Projectile& proj : *projs) {
         instanceDataBB.push({
             .position = glm::vec3(proj.pos.x, proj.pos.y, 0.0f),
@@ -262,9 +296,13 @@ void frameTick(Cam const& c) {
     }
     engine::startDraw(uniformData);
     engine::startDrawMesh(instanceData.full_slice());
-    engine::drawMesh(meshes.quad, 1); // ground
-    engine::drawMesh(meshes.monke, towers->list.size + drawPreviewMonkey); // monke
+    for(P<engine::MeshRef, u32> const& meshGroup : meshList) {
+        if (meshGroup.b == 0) { continue; }
+        engine::drawMesh(meshGroup.a, meshGroup.b);
+    }
     engine::endDrawMesh();
+    //engine::drawMesh(meshes.quad, 1); // ground
+    //engine::drawMesh(meshes.monke, towers->list.size); // monke
     engine::drawBillboard(instanceDataBB.full_slice()); // bloons and projectiles
     ui::drawUI();
     engine::endDraw();

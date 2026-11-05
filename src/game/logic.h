@@ -14,6 +14,7 @@ struct {
     engine::TextureRef triangle;
     engine::TextureRef projectile;
     engine::TextureRef ground;
+    engine::TextureRef moab;
 
     engine::TextureRef red;
     engine::TextureRef blue;
@@ -30,6 +31,7 @@ struct {
 
 struct {
     engine::MeshRef monke;
+    engine::MeshRef moab;
     engine::MeshRef quad;
 } meshes;
 

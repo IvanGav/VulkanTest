@@ -81,6 +81,8 @@ typedef u32 TextureRef;
 struct MeshRef {
     u32 ioff;
     u32 size;
+
+    auto operator<=>(MeshRef const& other) const = default;
 };
 
 struct Vertex {
@@ -896,7 +898,7 @@ MeshRef loadMeshObj(const char* path) {
     return mesh;
 }
 
-MeshRef loadTestMesh() {
+MeshRef makeQuadMesh() {
     assert(!initialized);
     MeshRef mesh = { .ioff = (u32)indices.size(), .size = 6 };
     vertices.push_back({ .pos = {0.0f,  0.5f,  0.5f}, .uv = {0.0f, 0.0f}, .normal = {1.0f, 0.0f, 0.0f} });

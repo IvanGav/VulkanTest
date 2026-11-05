@@ -54,6 +54,7 @@ void load_textures() {
     textures.triangle = engine::loadTexture("asset/triangle.png");
     textures.projectile = engine::loadTexture("asset/projectile.png");
     textures.ground = engine::loadTexture("asset/ground.png");
+    textures.moab = engine::loadTexture("asset/moab.png");
 
     textures.red = engine::loadTexture("asset/bloon/red.png");
     textures.blue = engine::loadTexture("asset/bloon/blue.png");
@@ -70,7 +71,8 @@ void load_textures() {
 
 void load_meshes() {
     meshes.monke = engine::loadMeshObj("asset/monke.obj");
-    meshes.quad = engine::loadTestMesh();
+    meshes.moab = engine::loadMeshObj("asset/moab.obj");
+    meshes.quad = engine::makeQuadMesh();
 }
 
 void init_animations() {
@@ -156,6 +158,16 @@ void init_bloon_protos() {
         .sprite = { .mesh = meshes.quad, .texture = textures.lead }
         });
     nbloon::Proto* lead = &bloon_protos.back();
+    bloon_protos.push(nbloon::Proto{
+        .hp = 10,
+        .type = BTYPE_BLIMP,
+        .speed = 0.02,
+        .children = make_global_slice<nbloon::Proto*>(green, green, green, lead),
+        .hitbox = hitbox::HB::make_circle(1.0),
+        .max_hitbox_dist = 1.0,
+        .sprite = {.mesh = meshes.moab, .texture = textures.moab }
+        });
+    nbloon::Proto* moab = &bloon_protos.back();
 }
 
 void init_tower_protos() {

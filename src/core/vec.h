@@ -225,7 +225,7 @@ struct Vec {
             .capacity = capacity,
             .arena = arena,
         };
-        mem::copy<T>(cloned.data, data, size);
+        mem::copy<T>(data, cloned.data, size);
         return cloned;
     }
 
