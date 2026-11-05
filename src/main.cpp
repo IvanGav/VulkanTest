@@ -106,6 +106,20 @@ glm::vec2 raycast(f32 screenX, f32 screenY, Cam const& cam, f32 zIntercept) {
     return glm::vec2(cam.pos.x, cam.pos.y);
 }
 
+TID findClosestMonkey(glm::vec2 worldPos) {
+    Vec2 myPos = { worldPos.x, worldPos.y };
+    TID closest = {};
+    f32 closestDistSq = F32_INF;
+    for (ntower::Tower const& t : *towers) {
+        f32 lenSq = (myPos - t.pos).len_sq();
+        if (lenSq < closestDistSq) {
+            closestDistSq = lenSq;
+            closest = t.id;
+        }
+    }
+    return closest;
+}
+
 bool mouseCaptured = false;
 bool gamePaused = false;
 void handleKeyboardInput(Cam& c) {
@@ -173,17 +187,27 @@ void handleKeyboardInput(Cam& c) {
     if (input::keyPressed(GLFW_KEY_ESCAPE)) {
         glfwSetInputMode(engine::window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
         mouseCaptured = false;
+        ui::monkeySelected = U32_MAX;
     }
 }
 
 void handleMouseInput(Cam const& c) {
-    if (input::mouseButtonPressed(GLFW_MOUSE_BUTTON_LEFT)) {
-        if (ui::monkeySelected == U32_MAX) {
-            // focus window
+    if (input::mouseButtonPressed(GLFW_MOUSE_BUTTON_RIGHT)) {
+        // focus/unfocus window
+        if (mouseCaptured) {
+            glfwSetInputMode(engine::window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+            mouseCaptured = false;
+        } else {
             glfwSetInputMode(engine::window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
             mouseCaptured = true;
+        }
+    }
+    if (input::mouseButtonPressed(GLFW_MOUSE_BUTTON_LEFT)) {
+        glm::vec2 pos = raycast(input::mousePos.x, input::mousePos.y, c, 0.0f);
+        if (ui::monkeySelected == U32_MAX) {
+            TID clickedMonkey = findClosestMonkey(pos);
+            if (clickedMonkey != TID{}) { remove_tower(clickedMonkey); }
         } else {
-            glm::vec2 pos = raycast(input::mousePos.x, input::mousePos.y, c, 0.0f);
             towers->add(ntower::Tower::spawn(&tower_protos[ui::monkeySelected], { pos.x, pos.y }));
             ui::monkeySelected = U32_MAX;
         }
