@@ -225,7 +225,7 @@ void handleMouseInput(Cam const& c) {
                 }
             }
         } else {
-            towers->add(ntower::Tower::spawn(&tower_protos[ui::placementMonkeySelectedIndex], { pos.x, pos.y }));
+            towers->add(ntower::Tower::spawn(&tower_protos[ui::placementMonkeySelectedIndex], { pos.x, pos.y }, c.yaw + glm::radians(180.0f)));
             ui::placementMonkeySelectedIndex = U32_MAX;
         }
     }

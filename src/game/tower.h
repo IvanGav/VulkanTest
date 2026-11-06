@@ -81,7 +81,7 @@ namespace ntower {
         bool camo_priority; // hardcoded, regretably
         visual::Animated sprite;
 
-        static Tower spawn(Proto* proto, Vec2 pos) {
+        static Tower spawn(Proto* proto, Vec2 pos, f32 dir) {
             Vec<Attack> attacks{ .arena = &game_arena };
             for (Attack& attack_proto : proto->attacks) {
                 attacks.push(attack_proto.instantiate());
@@ -89,7 +89,7 @@ namespace ntower {
             return Tower{
                 .proto = proto,
                 .pos = pos,
-                .dir = 0.0f, // assume initial rotation
+                .dir = dir,
                 .attacks = attacks, // ok to (mem) copy since the original goes out of scope
                 .cur_target_mode = 0,
                 .buffs = Vec<nproj::Buff> {.arena = &game_arena },
