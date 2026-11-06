@@ -15,6 +15,10 @@ struct {
     engine::TextureRef projectile;
     engine::TextureRef ground;
     engine::TextureRef moab;
+    engine::TextureRef bfb;
+    engine::TextureRef zomg;
+    engine::TextureRef ddt;
+    engine::TextureRef bad;
 
     engine::TextureRef red;
     engine::TextureRef blue;
@@ -27,6 +31,7 @@ struct {
     engine::TextureRef lead;
     engine::TextureRef rainbow;
     engine::TextureRef urple;
+    engine::TextureRef ceramic;
 } textures;
 
 struct {
@@ -85,8 +90,10 @@ void updateTick() {
     }
     // This loop is horrendous; it's required to attribute overkilling pops to correct towers; if attributing the pops was not necessary, it could be two very simple and beautiful for loops
     u32 ok_i = 0; // OverKillable Index
+    Vec<nbloon::Bloon> children = Vec<nbloon::Bloon>{ .arena = &frame_arena };
+    children.reserve(128); // arbitrary
     for (nbloon::Bloon& bloon : bloons->list) {
-        Vec<nbloon::Bloon> children = Vec<nbloon::Bloon>{ .arena = &frame_arena };
+        children.clear();
         // this check is needed for blimps that were killed by non-overkillable projectiles
         if (bloon.is_dead()) {
             // cannot be overkilled at this point

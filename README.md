@@ -238,3 +238,39 @@ Also this: https://www.youtube.com/watch?v=5ySiuP9BzcM
 After watching several videos, it *may* be possible to set up a proper world/camera/raycasting system that doesn't look awful when moving camera. Tricky though. The original game heavily relies on the static camera perspective to author all sprites/models/animations to fit exactly to that perspective. And honestly I should probably do that too. Lock the camera and allow moving only in debug mode.
 
 Tower overlapping is another pain in the ass.
+
+___
+
+TODO list without a particular order:
+- When selecting or putting down a tower, draw a radius gizmo
+- When selecting or putting down a tower, draw outline
+- Bloon effects
+- Bloon fortified type
+- Bloon regrow type
+- Bloon drop cash
+- Bloon damage stages
+- Bloon type/effect visualization (sprite overlays)
+- Bloon type/effect visualization (additional mesh) (?)
+- Path smooth bloon rotation
+- Path bezier curves
+- Life lost on bloon exit
+- Tower cannot place next to existing tower
+- Tower cannot place on track
+- Line of sight
+- Elevation
+- Water/Land/Unplaceable ground types
+- Tower/Projectile effects
+- Abilities
+- Ability UI
+- Good UI
+- Proper upgrades
+- Effects and projectile spawn animations
+- Multithread
+- Separate Frames from Updates (separate threads) (?)
+- Game over
+- Rounds
+- Range based effects (ie village buff)
+- Give towers proper animations with limbs and stuff
+- Meta projectile/tower proto creation system
+- Projectile bounce/go through walls
+- Projectile movement modifiers

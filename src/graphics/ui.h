@@ -77,7 +77,7 @@ void monkeyButton(u32 index, const char* name) {
 }
 
 TID selectedMonkey = {};
-void showMonkeyWindow() {
+void renderMonkeyWindow() {
     assert(selectedMonkey != TID{});
     ntower::Tower const* tower = towers->find(selectedMonkey);
     bool show = true;
@@ -93,26 +93,43 @@ void showMonkeyWindow() {
     if (!show) { selectedMonkey = TID{}; } // if window closed, deselect monkey
 }
 
+void renderBloonSpawnWindow(bool* show) {
+    assert(*show == true);
+    ImGui::Begin("Spawn Bloons", show);
+    for (nbloon::Proto& proto : bloon_protos) {
+        if (ImGui::Button(proto.name)) { bloons->add(nbloon::Bloon::spawn(&proto, &path)); }
+    }
+    ImGui::End();
+}
+
 bool showDemoWindow = false;
+bool showBloonSpawnWindow = false;
 void createUI() {
     ImGui_ImplVulkan_NewFrame();
     ImGui_ImplGlfw_NewFrame();
     ImGui::NewFrame();
     if (showDemoWindow) { ImGui::ShowDemoWindow(&showDemoWindow); }
-    if (selectedMonkey != TID{}) { showMonkeyWindow(); }
+    if (showBloonSpawnWindow) { renderBloonSpawnWindow(&showBloonSpawnWindow); }
+    if (selectedMonkey != TID{}) { renderMonkeyWindow(); }
     // main ui window
     {
         ImGui::Begin("BTDC"); // ImGuiWindowFlags_;
 
         ImGui::Text("Bloons");
         ImGui::Checkbox("Demo Window", &showDemoWindow);
+        ImGui::Checkbox("Spawn Bloons Window", &showBloonSpawnWindow);
 
         ImGui::Text("FPS: %.1f (%.3f ms/frame)", data::fps, 1000.0f / data::fps);
         ImGui::Text("UPS: %.1f (%.3f ms/update)", data::ups, 1000.0f / data::ups);
 
-        monkeyButton(0, "Double Damage Dart");
-        monkeyButton(1, "Dart Minigun");
-        monkeyButton(2, "Tripple Shot w/ Lead Popping");
+        ImGui::Text("Bloons: %i", bloons->list.size);
+        ImGui::Text("Projs:  %i", projs->list.size);
+        ImGui::Text("Towers: %i", towers->list.size);
+
+        for (u32 i = 0; i < tower_protos.size; i++) {
+            monkeyButton(i, tower_protos[i].tower_name);
+        }
+
         ImGui::End();
     }
     if (ImGui::IsKeyPressed(ImGuiKey_Escape)) {

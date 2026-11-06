@@ -142,6 +142,7 @@ struct Vec {
         }
     }
 
+    // Keep the reserved memory, but discard existing elements
     void clear() {
         size = 0;
     }

@@ -55,6 +55,10 @@ void load_textures() {
     textures.projectile = engine::loadTexture("asset/projectile.png");
     textures.ground = engine::loadTexture("asset/ground.png");
     textures.moab = engine::loadTexture("asset/moab.png");
+    textures.bfb = engine::loadTexture("asset/bfb.png");
+    textures.zomg = engine::loadTexture("asset/zomg.png");
+    textures.ddt = engine::loadTexture("asset/ddt.png");
+    textures.bad = engine::loadTexture("asset/bad.png");
 
     textures.red = engine::loadTexture("asset/bloon/red.png");
     textures.blue = engine::loadTexture("asset/bloon/blue.png");
@@ -67,6 +71,7 @@ void load_textures() {
     textures.lead = engine::loadTexture("asset/bloon/lead.png");
     textures.rainbow = engine::loadTexture("asset/bloon/rainbow.png");
     textures.urple = engine::loadTexture("asset/bloon/urple.png");
+    textures.ceramic = engine::loadTexture("asset/bloon/ceramic.png");
 }
 
 void load_meshes() {
@@ -116,59 +121,228 @@ void init_projectile_protos() {
         .lifetime_ticks = 100,
         .sprite = {.mesh = meshes.quad, .texture = textures.projectile }
         });
+    proj_protos.push(nproj::Proto{
+        .damage = 1,
+        .pierce = 8,
+        //.cannot_pop_type = PTYPE_SHARP,
+        .move = nmove::Move{ .type = nmove::Type::MoveSimple, .move_simple = nmove::MoveSimple{ .speed = 1.5 } },
+        .hitbox = hitbox::HB::make_circle(0.5),
+        .lifetime_ticks = 50,
+        .sprite = {.mesh = meshes.quad, .texture = textures.projectile }
+        });
+    proj_protos.push(nproj::Proto{
+        .damage = 24899,
+        .pierce = 16,
+        .move = nmove::Move{ .type = nmove::Type::MoveSimple, .move_simple = nmove::MoveSimple{ .speed = 3.0 } },
+        .hitbox = hitbox::HB::make_circle(1.0),
+        .lifetime_ticks = 50,
+        .flags = nproj::Flags(nproj::FlagsBit::OverkillBlimp),
+        .sprite = {.mesh = meshes.quad, .texture = textures.projectile }
+        });
 }
 
 void init_bloon_protos() {
     bloon_protos.push(nbloon::Proto{
         .hp = 1,
         .type = 0,
-        .speed = 0.08,
+        .speed = btd_to_world(25.0f),
         .children = {},
         .hitbox = hitbox::HB::make_circle(0.5),
         .max_hitbox_dist = 0.5,
-        .sprite = { .mesh = meshes.quad, .texture = textures.red }
+        .sprite = {.mesh = meshes.quad, .texture = textures.red, .scale = 1.0f },
+        .name = "red bloon"
         });
     nbloon::Proto* red = &bloon_protos.back();
+
     bloon_protos.push(nbloon::Proto{
         .hp = 1,
         .type = 0,
-        .speed = 0.12,
+        .speed = btd_to_world(35.0f),
         .children = make_global_slice<nbloon::Proto*>(red),
         .hitbox = hitbox::HB::make_circle(0.5),
         .max_hitbox_dist = 0.5,
-        .sprite = { .mesh = meshes.quad, .texture = textures.blue }
+        .sprite = {.mesh = meshes.quad, .texture = textures.blue, .scale = 1.0f },
+        .name = "blue bloon"
         });
     nbloon::Proto* blue = &bloon_protos.back();
+
     bloon_protos.push(nbloon::Proto{
-        .hp = 2,
+        .hp = 1,
         .type = 0,
-        .speed = 0.16,
+        .speed = btd_to_world(45.0f),
         .children = make_global_slice<nbloon::Proto*>(blue),
         .hitbox = hitbox::HB::make_circle(0.5),
         .max_hitbox_dist = 0.5,
-        .sprite = {.mesh = meshes.quad, .texture = textures.green }
+        .sprite = {.mesh = meshes.quad, .texture = textures.green, .scale = 1.0f },
+        .name = "green bloon"
         });
     nbloon::Proto* green = &bloon_protos.back();
+
+    bloon_protos.push(nbloon::Proto{
+        .hp = 1,
+        .type = 0,
+        .speed = btd_to_world(80.0f),
+        .children = make_global_slice<nbloon::Proto*>(green),
+        .hitbox = hitbox::HB::make_circle(0.5),
+        .max_hitbox_dist = 0.5,
+        .sprite = {.mesh = meshes.quad, .texture = textures.yellow, .scale = 1.0f },
+        .name = "yellow bloon"
+        });
+    nbloon::Proto* yellow = &bloon_protos.back();
+
+    bloon_protos.push(nbloon::Proto{
+        .hp = 1,
+        .type = 0,
+        .speed = btd_to_world(87.5f),
+        .children = make_global_slice<nbloon::Proto*>(yellow),
+        .hitbox = hitbox::HB::make_circle(0.5),
+        .max_hitbox_dist = 0.5,
+        .sprite = {.mesh = meshes.quad, .texture = textures.pink, .scale = 1.0f },
+        .name = "pink bloon"
+        });
+    nbloon::Proto* pink = &bloon_protos.back();
+
+    bloon_protos.push(nbloon::Proto{
+        .hp = 1,
+        .type = BTYPE_BLACK,
+        .speed = btd_to_world(45.0f),
+        .children = make_global_slice<nbloon::Proto*>(pink, pink),
+        .hitbox = hitbox::HB::make_circle(0.5),
+        .max_hitbox_dist = 0.5,
+        .sprite = {.mesh = meshes.quad, .texture = textures.black, .scale = 0.75f },
+        .name = "black bloon"
+        });
+    nbloon::Proto* black = &bloon_protos.back();
+
+    bloon_protos.push(nbloon::Proto{
+        .hp = 1,
+        .type = BTYPE_WHITE,
+        .speed = btd_to_world(50.0f),
+        .children = make_global_slice<nbloon::Proto*>(pink, pink),
+        .hitbox = hitbox::HB::make_circle(0.5),
+        .max_hitbox_dist = 0.5,
+        .sprite = {.mesh = meshes.quad, .texture = textures.white, .scale = 0.75f },
+        .name = "white bloon"
+        });
+    nbloon::Proto* white = &bloon_protos.back();
+
+    bloon_protos.push(nbloon::Proto{
+        .hp = 1,
+        .type = BTYPE_PURPLE,
+        .speed = btd_to_world(75.0f),
+        .children = make_global_slice<nbloon::Proto*>(pink, pink),
+        .hitbox = hitbox::HB::make_circle(0.5),
+        .max_hitbox_dist = 0.5,
+        .sprite = {.mesh = meshes.quad, .texture = textures.urple, .scale = 1.0f },
+        .name = "purple bloon"
+        });
+
+    bloon_protos.push(nbloon::Proto{
+        .hp = 1,
+        .type = BTYPE_BLACK | BTYPE_WHITE,
+        .speed = btd_to_world(45.0f),
+        .children = make_global_slice<nbloon::Proto*>(black, white),
+        .hitbox = hitbox::HB::make_circle(0.5),
+        .max_hitbox_dist = 0.5,
+        .sprite = {.mesh = meshes.quad, .texture = textures.zebra, .scale = 1.0f },
+        .name = "zebra bloon"
+        });
+    nbloon::Proto* zebra = &bloon_protos.back();
+
+    bloon_protos.push(nbloon::Proto{
+        .hp = 1,
+        .type = 0,
+        .speed = btd_to_world(55.0f),
+        .children = make_global_slice<nbloon::Proto*>(zebra, zebra),
+        .hitbox = hitbox::HB::make_circle(0.5),
+        .max_hitbox_dist = 0.5,
+        .sprite = {.mesh = meshes.quad, .texture = textures.rainbow, .scale = 1.0f },
+        .name = "rainbow bloon"
+        });
+    nbloon::Proto* rainbow = &bloon_protos.back();
+
+    bloon_protos.push(nbloon::Proto{
+        .hp = 10,
+        .type = BTYPE_CERAMIC,
+        .speed = btd_to_world(62.5f),
+        .children = make_global_slice<nbloon::Proto*>(rainbow, rainbow),
+        .hitbox = hitbox::HB::make_circle(0.5),
+        .max_hitbox_dist = 0.5,
+        .sprite = {.mesh = meshes.quad, .texture = textures.ceramic, .scale = 1.0f },
+        .name = "ceramic bloon"
+        });
+    nbloon::Proto* ceramic = &bloon_protos.back();
+
     bloon_protos.push(nbloon::Proto{
         .hp = 1,
         .type = BTYPE_LEAD,
-        .speed = 0.04,
-        .children = make_global_slice<nbloon::Proto*>(red, blue, green),
+        .speed = btd_to_world(25.0f),
+        .children = make_global_slice<nbloon::Proto*>(black, black),
         .hitbox = hitbox::HB::make_circle(0.5),
         .max_hitbox_dist = 0.5,
-        .sprite = { .mesh = meshes.quad, .texture = textures.lead }
+        .sprite = {.mesh = meshes.quad, .texture = textures.lead, .scale = 1.0f },
+        .name = "lead bloon"
         });
-    nbloon::Proto* lead = &bloon_protos.back();
+
     bloon_protos.push(nbloon::Proto{
-        .hp = 10,
+        .hp = 200,
         .type = BTYPE_BLIMP,
-        .speed = 0.02,
-        .children = make_global_slice<nbloon::Proto*>(green, green, green, lead),
+        .speed = btd_to_world(25.0f),
+        .children = make_global_slice<nbloon::Proto*>(ceramic, ceramic, ceramic, ceramic),
         .hitbox = hitbox::HB::make_circle(1.0),
         .max_hitbox_dist = 1.0,
-        .sprite = {.mesh = meshes.moab, .texture = textures.moab }
+        .sprite = {.mesh = meshes.moab, .texture = textures.moab, .scale = 1.0f },
+        .name = "moab blimp"
         });
     nbloon::Proto* moab = &bloon_protos.back();
+
+    bloon_protos.push(nbloon::Proto{
+        .hp = 700,
+        .type = BTYPE_BLIMP,
+        .speed = btd_to_world(6.25f),
+        .children = make_global_slice<nbloon::Proto*>(moab, moab, moab, moab),
+        .hitbox = hitbox::HB::make_circle(1.5), // TODO made up: scale factor for BFB relative to MOAB
+        .max_hitbox_dist = 1.5,
+        .sprite = {.mesh = meshes.moab, .texture = textures.bfb, .scale = 1.5f },
+        .name = "bfb blimp"
+        });
+    nbloon::Proto* bfb = &bloon_protos.back();
+
+    bloon_protos.push(nbloon::Proto{
+        .hp = 4000,
+        .type = BTYPE_BLIMP,
+        .speed = btd_to_world(4.5f),
+        .children = make_global_slice<nbloon::Proto*>(bfb, bfb, bfb, bfb),
+        .hitbox = hitbox::HB::make_circle(2.0), // TODO made up: scale factor for ZOMG relative to MOAB
+        .max_hitbox_dist = 2.0,
+        .sprite = {.mesh = meshes.moab, .texture = textures.zomg, .scale = 2.0f },
+        .name = "zomg blimp"
+        });
+    nbloon::Proto* zomg = &bloon_protos.back();
+
+    bloon_protos.push(nbloon::Proto{
+        .hp = 400,
+        .type = BTYPE_BLIMP | BTYPE_CAMO | BTYPE_LEAD | BTYPE_BLACK,
+        .speed = btd_to_world(66.0f),
+        .children = make_global_slice<nbloon::Proto*>(ceramic, ceramic, ceramic, ceramic),
+        .hitbox = hitbox::HB::make_circle(1.2), // TODO made up: scale factor for DDT relative to MOAB
+        .max_hitbox_dist = 1.2,
+        .sprite = {.mesh = meshes.moab, .texture = textures.ddt, .scale = 1.2f },
+        .name = "ddt blimp"
+        });
+    nbloon::Proto* ddt = &bloon_protos.back();
+
+    // rbe = 55,760
+    bloon_protos.push(nbloon::Proto{
+        .hp = 20000,
+        .type = BTYPE_BLIMP,
+        .speed = btd_to_world(4.5f),
+        .children = make_global_slice<nbloon::Proto*>(zomg, zomg, ddt, ddt, ddt),
+        .hitbox = hitbox::HB::make_circle(2.5), // TODO made up: scale factor for BAD relative to MOAB
+        .max_hitbox_dist = 2.5,
+        .sprite = {.mesh = meshes.moab, .texture = textures.bad, .scale = 2.5f },
+        .name = "bad blimp"
+        });
 }
 
 void init_tower_protos() {
@@ -176,6 +350,8 @@ void init_tower_protos() {
     nproj::Proto* proj1d3p = &proj_protos[0];
     nproj::Proto* proj3d1p = &proj_protos[1];
     nproj::Proto* proj2d2p = &proj_protos[2];
+    nproj::Proto* projop1 = &proj_protos[3];
+    nproj::Proto* projop2dmg = &proj_protos[4];
     tower_protos.push(ntower::Proto{
         .attacks = make_global_slice<ntower::Attack>(
             ntower::Attack{
@@ -220,6 +396,33 @@ void init_tower_protos() {
         .target_modes = standard_target_modes,
         .sprite = { .mesh = meshes.monke, .texture = textures.monke2, .state = visual::AnimationState::Spawn, .animation_duration_ref = 0, .animation_transition_ref = 0 },
         .tower_name = "Shotgun Monke"
+    });
+    // op towers
+    tower_protos.push(ntower::Proto{
+        .attacks = make_global_slice<ntower::Attack>(
+            ntower::Attack{
+                .attack = new std::function([proj_proto = projop1](ntower::Tower* tower, nproj::Buff const& buff_context) {
+                    return multishot_attack<10.0f, 50, glm::radians(90.0f)>(tower, buff_context, proj_proto);
+                }),
+                .cooldown_ticks = 5
+            }
+        ),
+        .target_modes = standard_target_modes,
+        .sprite = { .mesh = meshes.monke, .texture = textures.monke2, .state = visual::AnimationState::Spawn, .animation_duration_ref = 0, .animation_transition_ref = 0 },
+        .tower_name = "Op Minigun"
+    });
+    tower_protos.push(ntower::Proto{
+        .attacks = make_global_slice<ntower::Attack>(
+            ntower::Attack{
+                .attack = new std::function([proj_proto = projop2dmg](ntower::Tower* tower, nproj::Buff const& buff_context) {
+                    return simple_attack<10.0f>(tower, buff_context, proj_proto);
+                }),
+                .cooldown_ticks = 100
+            }
+        ),
+        .target_modes = standard_target_modes,
+        .sprite = { .mesh = meshes.monke, .texture = textures.monke2, .state = visual::AnimationState::Spawn, .animation_duration_ref = 0, .animation_transition_ref = 0 },
+        .tower_name = "Op Railgun"
     });
 }
 

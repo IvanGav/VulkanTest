@@ -102,6 +102,10 @@ namespace mem {
                 panic;
             }
             cur = (u8*) ptr + sizeof(T) * size;
+            if (cur > end_ptr) {
+                std::cout << "Arena memory overflow" << std::endl;
+                panic;
+            }
             return (T*) ptr;
         }
         template <typename T>
@@ -141,7 +145,7 @@ u32 cur_scratch_arena = 0;
 mem::Arena global_arena = mem::Arena::create(10 MB); // never cleared
 mem::Arena game_arena = mem::Arena::create(5 MB); // cleared when starting/exiting a "game" (active map changes)
 mem::Arena round_arena = mem::Arena::create(5 MB); // cleared at the end of every round
-mem::Arena frame_arena = mem::Arena::create(1 MB); // cleared every frame
+mem::Arena frame_arena = mem::Arena::create(10 MB); // cleared every frame
 mem::Arena scratch_arenas[SCRATCH_ARENA_NUM] = { mem::Arena::create(5 MB), mem::Arena::create(5 MB) };
 
 mem::Arena* get_scratch() {

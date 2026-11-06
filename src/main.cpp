@@ -62,7 +62,7 @@ glm::mat4 getAnimationModelMatrix(visual::Animated const& animation, f32 x, f32 
 
 glm::mat4 getStaticModelMatrix(visual::Static const& sprite, f32 x, f32 y, f32 dir, Cam const& cam) {
     if (sprite.is_billboard()) { panic; }
-    return glm::rotate(glm::translate(glm::mat4(1.0f), glm::vec3(x, y, 0.0f)), dir - glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+    return glm::scale(glm::rotate(glm::translate(glm::mat4(1.0f), glm::vec3(x, y, 0.0f)), dir - glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f)), glm::vec3(sprite.scale));
 }
 
 glm::vec2 raycast(f32 screenX, f32 screenY, Cam const& cam, f32 zIntercept) {
@@ -166,8 +166,8 @@ void handleKeyboardInput(Cam& c) {
         std::cout << "______________" << std::endl;
     }
     /* gameplay related inputs */
-    constexpr u32 keysMonkeyNum = 3;
-    u32 keysMonkey[keysMonkeyNum] = { GLFW_KEY_Z, GLFW_KEY_X, GLFW_KEY_C };
+    constexpr u32 keysMonkeyNum = 5;
+    u32 keysMonkey[keysMonkeyNum] = { GLFW_KEY_Z, GLFW_KEY_X, GLFW_KEY_C, GLFW_KEY_V, GLFW_KEY_B };
     for (u32 i = 0; i < keysMonkeyNum; i++) {
         if (input::keyPressed(keysMonkey[i])) {
             ui::placementMonkeySelectedIndex = ui::placementMonkeySelectedIndex == i ? U32_MAX : i;
@@ -241,7 +241,7 @@ void frameTick(Cam const& c) {
 
     // sort bloons
     Vec<nbloon::Bloon> bloonsSorted = bloons->list.clone(&frame_arena);
-    std::sort(bloonsSorted.begin(), bloonsSorted.end(), [](nbloon::Bloon const& first, nbloon::Bloon const& second) { return first.proto->sprite.mesh.ioff < second.proto->sprite.mesh.ioff; }); // TODO sort better probably; for now is fine
+    std::sort(bloonsSorted.begin(), bloonsSorted.end(), [](nbloon::Bloon const& first, nbloon::Bloon const& second) { return first.proto->sprite.mesh < second.proto->sprite.mesh; });
     for (nbloon::Bloon const& b : bloonsSorted) {
         if (b.proto->sprite.is_billboard()) {
             instanceDataBB.push({
@@ -318,8 +318,9 @@ int main() {
         if (!ui::captureMouse) { handleMouseInput(c); }
         if (!ui::captureKeyboard) { handleKeyboardInput(c); }
         frameTick(c);
-        if (!gamePaused && data::timeSinceLastUpdate() >= (1.0 / data::TARGET_UPS)) {
-        //while (!gamePaused && data::needDoUpdate()) { // would work perfectly, but alas, makes pausing impossible without jump-aheads on unpause; TODO make a better system later
+        //if (!gamePaused && data::timeSinceLastUpdate() >= (1.0 / data::TARGET_UPS)) {
+        //while (!gamePaused && data::needDoUpdate()) { // would work perfectly, but alas, makes pausing impossible without jump-aheads on unpause; TODO make a better system later; also prone to death spirals
+        for (u32 repeats = 0; !gamePaused && data::needDoUpdate() && repeats < 2; repeats += 1) {
             updateTick();
             data::updateTick();
         }

@@ -31,6 +31,7 @@ struct Proto {
     f32 max_hitbox_dist; // distance to farthest point on a hitbox; basically defines the AABB of this hitbox
     bool speed_status_immune; // TODO probably replace with "f32 speed_status_mult" or something, because BFBs also get slowed down less... i think
     visual::Static sprite;
+    const char* name;
 };
 
 // Bloon Family Tree
@@ -137,10 +138,15 @@ struct Bloon {
 };
 
 // TODO do something about this
-const nbloon::Type BTYPE_BLIMP = { 1 };
-const nbloon::Type BTYPE_CAMO = { 2 };
-const nbloon::Type BTYPE_LEAD = { 4 };
-const nbloon::Type BTYPE_CERAMIC = { 8 };
-const nbloon::Type BTYPE_FROZEN = { 16 };
+const nbloon::Type BTYPE_BLIMP = { 1 << 0 };
+const nbloon::Type BTYPE_CAMO = { 1 << 1 };
+const nbloon::Type BTYPE_LEAD = { 1 << 2 };
+const nbloon::Type BTYPE_CERAMIC = { 1 << 3 };
+const nbloon::Type BTYPE_FROZEN = { 1 << 4 };
+
+const nbloon::Type BTYPE_BLACK = { 1 << 5 };
+const nbloon::Type BTYPE_WHITE = { 1 << 6 };
+const nbloon::Type BTYPE_PURPLE = { 1 << 7 };
+const nbloon::Type BTYPE_FORTIFIED = { 1 << 8 };
 
 const nbloon::Type PTYPE_SHARP = BTYPE_LEAD | BTYPE_FROZEN;

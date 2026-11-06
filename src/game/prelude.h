@@ -35,6 +35,9 @@ typedef GID<ntower::Tower> TID;
 constexpr f32 range_btd_to_world(f32 btd_range) {
     return btd_range / 4; // TODO arbitrary
 }
+constexpr f32 btd_to_world(f32 btd_dist) {
+    return btd_dist / 500; // TODO arbitrary
+}
 
 u64 first_n_bits_mask(u8 number_of_bits_to_mask) {
     return number_of_bits_to_mask == 64 ? U64_MAX : (u64(1) << number_of_bits_to_mask) - 1;

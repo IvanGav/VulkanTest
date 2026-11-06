@@ -22,6 +22,7 @@ namespace visual {
 	struct Static {
 		engine::MeshRef mesh;
 		engine::TextureRef texture;
+		f32 scale;
 
 		bool is_billboard() const { return mesh.size < 7; } // TODO this is a stupid implementation, fix later when I actually have stuff
 	};
