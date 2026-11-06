@@ -117,6 +117,10 @@ TID findClosestMonkey(glm::vec2 worldPos) {
     return closest;
 }
 
+f32 distToMonkey(TID monkey, glm::vec2 worldPos) {
+    return (towers->find(monkey)->pos - Vec2{ worldPos.x, worldPos.y }).len();
+}
+
 bool mouseCaptured = false;
 bool gamePaused = false;
 void handleKeyboardInput(Cam& c) {
@@ -209,7 +213,7 @@ void handleMouseInput(Cam const& c) {
         if (ui::placementMonkeySelectedIndex == U32_MAX) {
             TID closestMonkey = findClosestMonkey(pos);
             if (closestMonkey != TID{}) {
-                f32 dist = (towers->find(closestMonkey)->pos - Vec2{ pos.x, pos.y }).len();
+                f32 dist = distToMonkey(closestMonkey, pos);
                 if (dist > 1.5f) {
                     ui::selectedMonkey = TID{};
                 } else {
@@ -217,8 +221,14 @@ void handleMouseInput(Cam const& c) {
                 }
             }
         } else {
-            towers->add(ntower::Tower::spawn(&tower_protos[ui::placementMonkeySelectedIndex], { pos.x, pos.y }, c.yaw + glm::radians(180.0f)));
-            ui::placementMonkeySelectedIndex = U32_MAX;
+            TID closestMonkey = findClosestMonkey(pos);
+            if (
+                closestMonkey == TID{}
+                || distToMonkey(closestMonkey, pos) > 2.0f // TODO this is just temporary hardcoded thing
+            ) {
+                towers->add(ntower::Tower::spawn(&tower_protos[ui::placementMonkeySelectedIndex], { pos.x, pos.y }, c.yaw + glm::radians(180.0f)));
+                ui::placementMonkeySelectedIndex = U32_MAX;
+            }
         }
     }
 }
@@ -246,7 +256,7 @@ void frameTick(Cam const& c) {
         if (b.proto->sprite.is_billboard()) {
             instanceDataBB.push({
                 .position = glm::vec3(b.pos.x, b.pos.y, 0.0f),
-                .size = 1.5f,
+                .size = 1.5f * b.proto->sprite.scale,
                 .texture = b.proto->sprite.texture,
             });
         } else {
@@ -271,13 +281,17 @@ void frameTick(Cam const& c) {
         });
     }
     // preview tower
-    if (ui::placementMonkeySelectedIndex != U32_MAX && !ui::captureMouse) {
+    glm::vec2 mouseWorldPos = raycast(input::mousePos.x, input::mousePos.y, c, 0.0f);
+    TID closestMonkey = findClosestMonkey(mouseWorldPos);
+    if (
+        ui::placementMonkeySelectedIndex != U32_MAX && !ui::captureMouse
+        && (closestMonkey == TID{} || distToMonkey(closestMonkey, mouseWorldPos) > 2.0f)
+    ) {
         meshList.back().b += 1;
-        glm::vec2 pos = raycast(input::mousePos.x, input::mousePos.y, c, 0.0f);
         visual::Animated sprite = tower_protos[ui::placementMonkeySelectedIndex].sprite;
         sprite.state = visual::AnimationState::Idle;
         instanceData.push({
-            .model = getAnimationModelMatrix(sprite, pos.x, pos.y, c.yaw + glm::radians(180.0f)),
+            .model = getAnimationModelMatrix(sprite, mouseWorldPos.x, mouseWorldPos.y, c.yaw + glm::radians(180.0f)),
             .texture = sprite.texture
         });
     }
