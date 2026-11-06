@@ -111,7 +111,7 @@ void init_projectile_protos() {
         .damage = 2,
         .pierce = 2,
         .cannot_pop_type = PTYPE_SHARP,
-        .move = nmove::Move{.type = nmove::Type::MoveSimple, .move_simple = nmove::MoveSimple{ .speed = 0.5 } },
+        .move = nmove::Move{ .type = nmove::Type::MoveSimple, .move_simple = nmove::MoveSimple{ .speed = 0.5 } },
         .hitbox = hitbox::HB::make_circle(0.5),
         .lifetime_ticks = 100,
         .sprite = {.mesh = meshes.quad, .texture = textures.projectile }
