@@ -185,7 +185,8 @@ void init_tower_protos() {
             }
         ),
         .target_modes = standard_target_modes,
-        .sprite = { .mesh = meshes.monke, .texture = textures.monke, .state = visual::AnimationState::Spawn, .animation_duration_ref = 0, .animation_transition_ref = 0 }
+        .sprite = { .mesh = meshes.monke, .texture = textures.monke, .state = visual::AnimationState::Spawn, .animation_duration_ref = 0, .animation_transition_ref = 0 },
+        .tower_name = "Dart Monke"
     });
     tower_protos.push(ntower::Proto{
         .attacks = make_global_slice<ntower::Attack>(
@@ -197,7 +198,8 @@ void init_tower_protos() {
             }
         ),
         .target_modes = standard_target_modes,
-        .sprite = {.mesh = meshes.monke, .texture = textures.monke, .state = visual::AnimationState::Spawn, .animation_duration_ref = 0, .animation_transition_ref = 0 }
+        .sprite = {.mesh = meshes.monke, .texture = textures.monke, .state = visual::AnimationState::Spawn, .animation_duration_ref = 0, .animation_transition_ref = 0 },
+        .tower_name = "Minigun Monke"
     });
     tower_protos.push(ntower::Proto{
         .attacks = make_global_slice<ntower::Attack>(
@@ -215,7 +217,8 @@ void init_tower_protos() {
             }
         ),
         .target_modes = standard_target_modes,
-        .sprite = { .mesh = meshes.monke, .texture = textures.monke2, .state = visual::AnimationState::Spawn, .animation_duration_ref = 0, .animation_transition_ref = 0 }
+        .sprite = { .mesh = meshes.monke, .texture = textures.monke2, .state = visual::AnimationState::Spawn, .animation_duration_ref = 0, .animation_transition_ref = 0 },
+        .tower_name = "Shotgun Monke"
     });
 }
 

@@ -56,6 +56,7 @@ namespace ntower {
         Slice<Attack> attacks;
         Slice<TargetMode> target_modes;
         visual::Animated sprite;
+        const char* tower_name;
     };
 
     struct Tower {

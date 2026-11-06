@@ -178,7 +178,7 @@ void handleKeyboardInput(Cam& c) {
     u32 keysMonkey[keysMonkeyNum] = { GLFW_KEY_Z, GLFW_KEY_X, GLFW_KEY_C };
     for (u32 i = 0; i < keysMonkeyNum; i++) {
         if (input::keyPressed(keysMonkey[i])) {
-            ui::monkeySelected = ui::monkeySelected == i ? U32_MAX : i;
+            ui::placementMonkeySelectedIndex = ui::placementMonkeySelectedIndex == i ? U32_MAX : i;
         }
     }
     constexpr u32 keysBloonNum = 5;
@@ -192,7 +192,12 @@ void handleKeyboardInput(Cam& c) {
     if (input::keyPressed(GLFW_KEY_ESCAPE)) {
         glfwSetInputMode(engine::window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
         mouseCaptured = false;
-        ui::monkeySelected = U32_MAX;
+        ui::placementMonkeySelectedIndex = U32_MAX;
+    }
+    // delete monkey when selected WARNING duplicate of ui's functionality
+    if (ui::selectedMonkey != TID{} && input::keyPressed(GLFW_KEY_DELETE)) {
+        remove_tower(ui::selectedMonkey);
+        ui::selectedMonkey = TID{};
     }
 }
 
@@ -209,12 +214,18 @@ void handleMouseInput(Cam const& c) {
     }
     if (input::mouseButtonPressed(GLFW_MOUSE_BUTTON_LEFT)) {
         glm::vec2 pos = raycast(input::mousePos.x, input::mousePos.y, c, 0.0f);
-        if (ui::monkeySelected == U32_MAX) {
-            TID clickedMonkey = findClosestMonkey(pos);
-            if (clickedMonkey != TID{}) { remove_tower(clickedMonkey); }
+        if (ui::placementMonkeySelectedIndex == U32_MAX) {
+            TID closestMonkey = findClosestMonkey(pos);
+            //if (clickedMonkey != TID{}) { remove_tower(clickedMonkey); }
+            f32 dist = (towers->find(closestMonkey)->pos - Vec2{ pos.x, pos.y }).len();
+            if (dist > 1.5f) {
+                ui::selectedMonkey = TID{};
+            } else {
+                ui::selectedMonkey = closestMonkey;
+            }
         } else {
-            towers->add(ntower::Tower::spawn(&tower_protos[ui::monkeySelected], { pos.x, pos.y }));
-            ui::monkeySelected = U32_MAX;
+            towers->add(ntower::Tower::spawn(&tower_protos[ui::placementMonkeySelectedIndex], { pos.x, pos.y }));
+            ui::placementMonkeySelectedIndex = U32_MAX;
         }
     }
 }
@@ -267,10 +278,10 @@ void frameTick(Cam const& c) {
         });
     }
     // preview tower
-    if (ui::monkeySelected != U32_MAX && !ui::captureMouse) {
+    if (ui::placementMonkeySelectedIndex != U32_MAX && !ui::captureMouse) {
         meshList.back().b += 1;
         glm::vec2 pos = raycast(input::mousePos.x, input::mousePos.y, c, 0.0f);
-        visual::Animated sprite = tower_protos[ui::monkeySelected].sprite;
+        visual::Animated sprite = tower_protos[ui::placementMonkeySelectedIndex].sprite;
         sprite.state = visual::AnimationState::Idle;
         instanceData.push({
             .model = getAnimationModelMatrix(sprite, pos.x, pos.y, c.yaw + glm::radians(180.0f)),

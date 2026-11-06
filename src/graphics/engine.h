@@ -414,13 +414,13 @@ void createDevice(VkPhysicalDevice physicalDevice) {
     VkPhysicalDeviceVulkan14Features enabledVk14Features{
         .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_4_FEATURES,
         .pNext = &enabledVk13Features,
-        .maintenance5 = VK_TRUE,
-        .hostImageCopy = VK_TRUE,
+        .maintenance5 = VK_TRUE, // not on laptop
+        .hostImageCopy = VK_TRUE, // not on laptop
     };
     VkPhysicalDeviceUnifiedImageLayoutsFeaturesKHR unifiedImageLayousFeatures{
         .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_UNIFIED_IMAGE_LAYOUTS_FEATURES_KHR,
         .pNext = &enabledVk14Features,
-        .unifiedImageLayouts = VK_TRUE,
+        .unifiedImageLayouts = VK_TRUE, // not on laptop
     };
     VkPhysicalDeviceFeatures enabledVk10Features{
         .samplerAnisotropy = VK_TRUE,
@@ -881,7 +881,7 @@ MeshRef loadMeshObj(const char* path) {
     std::vector<tinyobj::shape_t> shapes;
     std::vector<tinyobj::material_t> materials;
     {
-        bool result = tinyobj::LoadObj(&attrib, &shapes, &materials, nullptr, nullptr, path);
+        bool result = tinyobj::LoadObj(&attrib, &shapes, &materials, nullptr, path);
         if (!result) { err("Could not load obj"); }
     }
 
