@@ -216,12 +216,13 @@ void handleMouseInput(Cam const& c) {
         glm::vec2 pos = raycast(input::mousePos.x, input::mousePos.y, c, 0.0f);
         if (ui::placementMonkeySelectedIndex == U32_MAX) {
             TID closestMonkey = findClosestMonkey(pos);
-            //if (clickedMonkey != TID{}) { remove_tower(clickedMonkey); }
-            f32 dist = (towers->find(closestMonkey)->pos - Vec2{ pos.x, pos.y }).len();
-            if (dist > 1.5f) {
-                ui::selectedMonkey = TID{};
-            } else {
-                ui::selectedMonkey = closestMonkey;
+            if (closestMonkey != TID{}) {
+                f32 dist = (towers->find(closestMonkey)->pos - Vec2{ pos.x, pos.y }).len();
+                if (dist > 1.5f) {
+                    ui::selectedMonkey = TID{};
+                } else {
+                    ui::selectedMonkey = closestMonkey;
+                }
             }
         } else {
             towers->add(ntower::Tower::spawn(&tower_protos[ui::placementMonkeySelectedIndex], { pos.x, pos.y }));

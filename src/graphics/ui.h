@@ -99,7 +99,7 @@ void createUI() {
     ImGui_ImplGlfw_NewFrame();
     ImGui::NewFrame();
     if (showDemoWindow) { ImGui::ShowDemoWindow(&showDemoWindow); }
-    if (selectedMonkey == TID{}) {
+    if (selectedMonkey != TID{}) { showMonkeyWindow(); }
     // main ui window
     {
         ImGui::Begin("BTDC"); // ImGuiWindowFlags_;
