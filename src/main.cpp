@@ -8,14 +8,6 @@
 
 #include "init_game.h"
 
-f64 logAt = 1.0;
-void logFps() {
-    if (data::time >= logAt) {
-        std::cout << "fps: " << data::fps << ", ups: " << data::ups << std::endl;
-        logAt = data::time + 1.0;
-    }
-}
-
 // angles in radians
 struct Cam {
     glm::vec3 pos;
@@ -289,16 +281,8 @@ void frameTick(Cam const& c) {
             .texture = sprite.texture
         });
     }
-
-    //for (nbloon::Bloon& bloon : *bloons) {
-    //    instanceDataBB.push({
-    //        .position = glm::vec3(bloon.pos.x, bloon.pos.y, 0.0f),
-    //        .size = 1.5f,
-    //        .texture = bloon.proto->sprite.texture,
-    //    });
-    //}
     
-    // billboards
+    // projectiles
     for (nproj::Projectile& proj : *projs) {
         instanceDataBB.push({
             .position = glm::vec3(proj.pos.x, proj.pos.y, 0.0f),
@@ -306,6 +290,7 @@ void frameTick(Cam const& c) {
             .texture = proj.proto->sprite.texture,
         });
     }
+
     engine::startDraw(uniformData);
     engine::startDrawMesh(instanceData.full_slice());
     for(P<engine::MeshRef, u32> const& meshGroup : meshList) {
@@ -313,8 +298,6 @@ void frameTick(Cam const& c) {
         engine::drawMesh(meshGroup.a, meshGroup.b);
     }
     engine::endDrawMesh();
-    //engine::drawMesh(meshes.quad, 1); // ground
-    //engine::drawMesh(meshes.monke, towers->list.size); // monke
     engine::drawBillboard(instanceDataBB.full_slice()); // bloons and projectiles
     ui::drawUI();
     engine::endDraw();
@@ -336,10 +319,10 @@ int main() {
         if (!ui::captureKeyboard) { handleKeyboardInput(c); }
         frameTick(c);
         if (!gamePaused && data::timeSinceLastUpdate() >= (1.0 / data::TARGET_UPS)) {
+        //while (!gamePaused && data::needDoUpdate()) { // would work perfectly, but alas, makes pausing impossible without jump-aheads on unpause; TODO make a better system later
             updateTick();
             data::updateTick();
         }
-        logFps();
     }
 	engine::cleanup();
 }

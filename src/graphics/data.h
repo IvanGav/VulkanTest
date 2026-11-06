@@ -75,6 +75,10 @@ f64 timeSinceLastUpdate() {
 	return timePassed;
 }
 
+bool needDoUpdate() {
+	return (update + 1) * (1.0 / TARGET_UPS) < time;
+}
+
 constexpr u32 secondsToUpdates(f64 seconds) {
 	return u32(seconds * TARGET_UPS);
 }

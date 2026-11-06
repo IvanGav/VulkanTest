@@ -107,7 +107,8 @@ void createUI() {
         ImGui::Text("Bloons");
         ImGui::Checkbox("Demo Window", &showDemoWindow);
 
-        ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / data::fps, data::fps);
+        ImGui::Text("FPS: %.1f (%.3f ms/frame)", data::fps, 1000.0f / data::fps);
+        ImGui::Text("UPS: %.1f (%.3f ms/update)", data::ups, 1000.0f / data::ups);
 
         monkeyButton(0, "Double Damage Dart");
         monkeyButton(1, "Dart Minigun");
