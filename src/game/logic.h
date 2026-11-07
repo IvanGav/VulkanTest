@@ -40,6 +40,30 @@ struct {
     engine::MeshRef quad;
 } meshes;
 
+void detectHits(u32 from, u32 to, Vec<P<BID,u32>>* hits) {
+    for (u32 i = from; i < to; i++) {
+        nbloon::Bloon const& bloon = bloons->list[i];
+        for (u32 pi = 0; pi < projs->list.size; pi++) {
+            nproj::Projectile& proj = projs->list[pi];
+            if (
+                proj.pierce > 0 &&
+                bloon.proto->hitbox.intersect(&proj.proto->hitbox, bloon.pos, proj.pos, bloon.dir, proj.dir) &&
+                proj.can_hit(bloon.type) &&
+                !projs->has_hit(pi, bloon.bft)
+                ) {
+                if (proj.can_pop(bloon.type)) {
+                    hits->push({ bloon.id, pi });
+                }
+                else {
+                    proj.pierce = 0; // thread safe because we discard this projectile's hits later anyway
+                }
+            }
+        }
+    }
+}
+
+u32 compute_thread_count = 6;
+
 void updateTick() {
     for (nbloon::Bloon& bloon : bloons->list) bloon.move();
     for (nproj::Projectile& proj : projs->list) proj.move();
@@ -50,43 +74,43 @@ void updateTick() {
             bloons->del(bloon.id);
         }
     }
-    Vec<P<BID, u32>> hits = Vec<P<BID, u32>>{ .arena = &frame_arena };
-    hits.reserve(projs->list.size); // reserve some arbitrary amount to begin with
-    for (nbloon::Bloon& bloon : *bloons) {
-        for (u32 pi = 0; pi < projs->list.size; pi++) {
-            nproj::Projectile& proj = projs->list[pi];
-            if (
-                proj.pierce > 0 &&
-                bloon.proto->hitbox.intersect(&proj.proto->hitbox, bloon.pos, proj.pos, bloon.dir, proj.dir) &&
-                proj.can_hit(bloon.type) &&
-                !projs->has_hit(pi, bloon.bft)
-            ) {
-                if (proj.can_pop(bloon.type)) {
-                    hits.push({bloon.id, pi});
-                } else {
-                    proj.pierce = 0; // thread safe because we discard this projectile's hits later anyway
-                }
-            }
-        }
+    u32 reserveSize = max(max(projs->list.size, bloons->list.size), 1024u);
+    Vec<Vec<P<BID, u32>>*> hits = Vec<Vec<P<BID, u32>>*>{ .arena = &frame_arena }; hits.resize(compute_thread_count);
+    std::vector<std::thread> threads; threads.reserve(compute_thread_count);
+    u32 bloonsPerThread = max(bloons->list.size / compute_thread_count, 1u);
+    for (u32 i = 0; i < compute_thread_count; i++) {
+        hits[i] = frame_arena.push(Vec<P<BID, u32>>{.arena = &frame_arena});
+        hits[i]->reserve(reserveSize); // reserve some (large) arbitrary amount to begin with
+        threads.push_back(std::thread(
+            detectHits,
+            i * bloonsPerThread, // from
+            min((i + 1) * bloonsPerThread, bloons->list.size), // to
+            hits[i] // hits vec
+        ));
+    }
+    for (u32 i = 0; i < compute_thread_count; i++) {
+        threads[i].join();
     }
     Vec<P<BID, u32>> overkillable_hits = Vec<P<BID, u32>>{ .arena = &frame_arena }; // TODO this makes it a bit nicer in the next step, but might be very slow
     overkillable_hits.reserve(hits.size);
-    for (P<BID, u32> const& hit : hits) {
-        nbloon::Bloon* bloon = bloons->find(hit.a);
-        nproj::Projectile& proj = projs->list[hit.b];
-        if (proj.pierce == 0) { continue; } // this projectile has hit a bloon it cannot pop and died
-        proj.pierce -= 1;
-        i32 actual_proj_damage = proj.proto->damage; // TODO additional calculations here
-        if (proj.can_overkill(bloon->type)) {
-            overkillable_hits.push(hit);
-        } else {
-            // safely do damage directly to bloon
-            i32 damage_dealt = min(bloon->hp, actual_proj_damage);
-            bloon->hp = max(0, bloon->hp - actual_proj_damage);
-            ntower::Tower* t = towers->find(proj.parent_tower);
-            if (t != nullptr) { t->pop_count += damage_dealt; } // attribute the true damage dealt
+    for (Vec<P<BID, u32>>* hits_chunk : hits) {
+        for (P<BID, u32> const& hit : *hits_chunk) {
+            nbloon::Bloon* bloon = bloons->find(hit.a);
+            nproj::Projectile& proj = projs->list[hit.b];
+            if (proj.pierce == 0) { continue; } // this projectile has hit a bloon it cannot pop and died
+            proj.pierce -= 1;
+            i32 actual_proj_damage = proj.proto->damage; // TODO additional calculations here
+            if (proj.can_overkill(bloon->type)) { // TODO was nullptr
+                overkillable_hits.push(hit);
+            } else {
+                // safely do damage directly to bloon
+                i32 damage_dealt = min(bloon->hp, actual_proj_damage);
+                bloon->hp = max(0, bloon->hp - actual_proj_damage);
+                ntower::Tower* t = towers->find(proj.parent_tower);
+                if (t != nullptr) { t->pop_count += damage_dealt; } // attribute the true damage dealt
+            }
+            if (!proj.has_flag(nproj::FlagsBit::SkipRecordHits)) { projs->record_hit(hit.b, bloon->bft); }
         }
-        if (!proj.has_flag(nproj::FlagsBit::SkipRecordHits)) { projs->record_hit(hit.b, bloon->bft); }
     }
     // This loop is horrendous; it's required to attribute overkilling pops to correct towers; if attributing the pops was not necessary, it could be two very simple and beautiful for loops
     u32 ok_i = 0; // OverKillable Index

@@ -126,6 +126,8 @@ void createUI() {
         ImGui::Text("Projs:  %i", projs->list.size);
         ImGui::Text("Towers: %i", towers->list.size);
 
+        ImGui::SliderInt("Threads", (int*) &compute_thread_count, 1, 12);
+
         for (u32 i = 0; i < tower_protos.size; i++) {
             monkeyButton(i, tower_protos[i].tower_name);
         }

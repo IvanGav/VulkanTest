@@ -177,11 +177,18 @@ void handleKeyboardInput(Cam& c) {
             ui::placementMonkeySelectedIndex = ui::placementMonkeySelectedIndex == i ? U32_MAX : i;
         }
     }
-    constexpr u32 keysBloonNum = 5;
-    u32 keysBloon[keysBloonNum] = { GLFW_KEY_1, GLFW_KEY_2, GLFW_KEY_3, GLFW_KEY_4, GLFW_KEY_5 };
-    for (u32 i = 0; i < keysBloonNum; i++) {
-        if (input::keyPressed(keysBloon[i])) {
-            bloons->add(nbloon::Bloon::spawn(&bloon_protos[i], &path));
+    //constexpr u32 keysBloonNum = 5;
+    //u32 keysBloon[keysBloonNum] = { GLFW_KEY_1, GLFW_KEY_2, GLFW_KEY_3, GLFW_KEY_4, GLFW_KEY_5 };
+    //for (u32 i = 0; i < keysBloonNum; i++) {
+    //    if (input::keyPressed(keysBloon[i])) {
+    //        bloons->add(nbloon::Bloon::spawn(&bloon_protos[i], &path));
+    //    }
+    //}
+    if (input::keyPressed(GLFW_KEY_L)) {
+        for (u32 i = 0; i < 25; i++) {
+            nbloon::Bloon b = nbloon::Bloon::spawn(&bloon_protos.back(), &path);
+            b.move_child(i * 4);
+            bloons->add(b);
         }
     }
     // unfocus
@@ -221,14 +228,14 @@ void handleMouseInput(Cam const& c) {
                 }
             }
         } else {
-            TID closestMonkey = findClosestMonkey(pos);
-            if (
-                closestMonkey == TID{}
-                || distToMonkey(closestMonkey, pos) > 2.0f // TODO this is just temporary hardcoded thing
-            ) {
-                towers->add(ntower::Tower::spawn(&tower_protos[ui::placementMonkeySelectedIndex], { pos.x, pos.y }, c.yaw + glm::radians(180.0f)));
-                ui::placementMonkeySelectedIndex = U32_MAX;
-            }
+            //TID closestMonkey = findClosestMonkey(pos);
+            //if (
+            //    closestMonkey == TID{}
+            //    || distToMonkey(closestMonkey, pos) > 2.0f // TODO this is just temporary hardcoded thing
+            //) {
+            towers->add(ntower::Tower::spawn(&tower_protos[ui::placementMonkeySelectedIndex], { pos.x, pos.y }, c.yaw + glm::radians(180.0f)));
+            ui::placementMonkeySelectedIndex = U32_MAX;
+            //}
         }
     }
 }
@@ -282,10 +289,10 @@ void frameTick(Cam const& c) {
     }
     // preview tower
     glm::vec2 mouseWorldPos = raycast(input::mousePos.x, input::mousePos.y, c, 0.0f);
-    TID closestMonkey = findClosestMonkey(mouseWorldPos);
+    //TID closestMonkey = findClosestMonkey(mouseWorldPos);
     if (
         ui::placementMonkeySelectedIndex != U32_MAX && !ui::captureMouse
-        && (closestMonkey == TID{} || distToMonkey(closestMonkey, mouseWorldPos) > 2.0f)
+        //&& (closestMonkey == TID{} || distToMonkey(closestMonkey, mouseWorldPos) > 2.0f)
     ) {
         meshList.back().b += 1;
         visual::Animated sprite = tower_protos[ui::placementMonkeySelectedIndex].sprite;

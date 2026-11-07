@@ -123,7 +123,7 @@ void init_projectile_protos() {
         });
     proj_protos.push(nproj::Proto{
         .damage = 1,
-        .pierce = 8,
+        .pierce = 32,
         //.cannot_pop_type = PTYPE_SHARP,
         .move = nmove::Move{ .type = nmove::Type::MoveSimple, .move_simple = nmove::MoveSimple{ .speed = 1.5 } },
         .hitbox = hitbox::HB::make_circle(0.5),
@@ -132,7 +132,7 @@ void init_projectile_protos() {
         });
     proj_protos.push(nproj::Proto{
         .damage = 24899,
-        .pierce = 16,
+        .pierce = 64,
         .move = nmove::Move{ .type = nmove::Type::MoveSimple, .move_simple = nmove::MoveSimple{ .speed = 3.0 } },
         .hitbox = hitbox::HB::make_circle(1.0),
         .lifetime_ticks = 50,

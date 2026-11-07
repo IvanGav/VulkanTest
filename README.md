@@ -175,7 +175,8 @@ More notes:
 - I will sometimes (necromancer, wall of fire, etc) need a "special target" to target a secondary attack. Sometimes it'll need to be targetable anywhere, sometimes only path. Or just take closest path, but either way I'll need to *store* the path sometimes for optimization. It can also (sometimes?) be "unset" to use default behavior.
 - I don't know if I should hardcode the 5-2-0 of 5-5-5 upgrade system. Because it *could* be cool to have it non-fully-hardcoded. But at the same time it would be much simpler if it *was* hardcoded. The easiest solution that gets best of both worlds is just having a handler function for 5-2-0 of 5-5-5 and having an if statement checking what upgrade schema the given tower has.
 - As much as I'd like to, I should never rely on raw pointer comparison for equality. When saving/loading state, it'd be *easiest* if I didn't have to restore the exact memory state up to raw pointer equivalence. So the only case where it may be ok is comparing `Proto`s, since those may be looked up and reverse looked up by their key. And that's not even that useful anyway. After that, I need a function to load every kind of runtime object (non-`Proto`s, of course). And then a loop over all game structures to serialize in order, and then deserialize in order.
-
+- More knockback for certain types (ie jugg vs ceramic)
+- 
 ___
 
 Additional features:
@@ -241,6 +242,27 @@ Tower overlapping is another pain in the ass.
 
 ___
 
+Yapping:
+
+I need to be able to raycast against geometry. Which is really not that big of a problem. Then I need to give towers and the level additional raycast-friendly geometry. After that, I see which tower/spot it hit. And work from there.
+
+Another thing I realized is: regrown layers do *not* give pops.
+
+And last thing: line of sight. I tested and it seems like if you have a blimp that's mostly out of range but a sliver of its hitbox is visible from around the corner, the monkey will aim for that sliver. Which is not how I expected it to work tbh.
+
+In the last yapping block I made a big deal out of ortho perspective *and* raycasting.
+
+Neither are that big of a deal.
+Raycasting against simple geometry (aka box, palne, etc) is *far* less intimidating than the actual visible mesh. Which, it's just raycasting against triangles anyway, so who cares. Or if I decide to make it against analytical surfaces, even easier (aka my graphics class raytracer).
+As for ortho perspective, it just requires some smart planning, modeling and animations. But it's generally fine from technical side.
+I was, for example, worried about the plane and especially bombs. But tunrs out, the animation for bombs is as such: make them smaller to imitate falling down. That's it. That's just some smart animating work.
+
+Another thing: I can finally test the performance, properly. Single thread with both logic and rendering. No optimizations. I can support 2k projectiles with 500 bloons at 5-10 fps/ups. Pretty good I think. And it was pretty smooth, too (slow, but smooth).
+Another thing: I noticed that high damage projectiles do, in fact, cause a lot of lag when layer skipping the entire bad from start to finish. Which makes sense, really.
+Another thing: There's a bug in my pop attribution code. If I have fast firing tower(s), they can sometimes get a few extra pops on a bad (1 and 4 the two times I tested).
+
+___
+
 TODO list without a particular order:
 - When selecting or putting down a tower, draw a radius gizmo
 - When selecting or putting down a tower, draw outline
@@ -274,3 +296,7 @@ TODO list without a particular order:
 - Meta projectile/tower proto creation system
 - Projectile bounce/go through walls
 - Projectile movement modifiers
+- Raycast against geometry
+- Performance testing framework
+- Determinism testing framework
+- Save states
