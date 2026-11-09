@@ -43,11 +43,11 @@ layout(location = 0) out vec2 outUV;
 layout(location = 1) flat out uint textureIndex;
 
 vec3 quad[6] = {
-    vec3( 0.5,  0.5, 0.0), // 0
+    vec3(-0.5, -0.5, 0.0), // 2
     vec3( 0.5, -0.5, 0.0), // 1
-    vec3(-0.5, -0.5, 0.0), // 2
-    vec3(-0.5, -0.5, 0.0), // 2
+    vec3( 0.5,  0.5, 0.0), // 0
     vec3(-0.5,  0.5, 0.0), // 3
+    vec3(-0.5, -0.5, 0.0), // 2
     vec3( 0.5,  0.5, 0.0), // 0
 };
 

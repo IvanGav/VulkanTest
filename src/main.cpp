@@ -320,6 +320,11 @@ void frameTick(Cam const& c) {
     }
     engine::endDrawMesh();
     engine::drawBillboard(instanceDataBB.full_slice()); // bloons and projectiles
+    if (ui::selectedMonkey != TID{}) {
+        ntower::Tower const* tower = towers->find(ui::selectedMonkey);
+        glm::mat4 model = getAnimationModelMatrix(tower->sprite, tower->pos.x, tower->pos.y, tower->dir);
+        engine::drawOutlineMesh(engine::ShaderInstanceData{ .model = model }, tower->sprite.mesh);
+    }
     ui::drawUI();
     engine::endDraw();
 }

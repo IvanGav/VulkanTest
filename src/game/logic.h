@@ -88,24 +88,27 @@ void updateTick() {
             hits[i] // hits vec
         ));
     }
+    u32 total_hits = 0;
     for (u32 i = 0; i < compute_thread_count; i++) {
         threads[i].join();
+        total_hits += hits[i]->size;
     }
     Vec<P<BID, u32>> overkillable_hits = Vec<P<BID, u32>>{ .arena = &frame_arena }; // TODO this makes it a bit nicer in the next step, but might be very slow
-    overkillable_hits.reserve(hits.size);
+    overkillable_hits.reserve(total_hits);
     for (Vec<P<BID, u32>>* hits_chunk : hits) {
         for (P<BID, u32> const& hit : *hits_chunk) {
             nbloon::Bloon* bloon = bloons->find(hit.a);
+            assert(bloon != nullptr);
             nproj::Projectile& proj = projs->list[hit.b];
             if (proj.pierce == 0) { continue; } // this projectile has hit a bloon it cannot pop and died
             proj.pierce -= 1;
             i32 actual_proj_damage = proj.proto->damage; // TODO additional calculations here
-            if (proj.can_overkill(bloon->type)) { // TODO was nullptr
+            if (proj.can_overkill(bloon->type)) {
                 overkillable_hits.push(hit);
             } else {
                 // safely do damage directly to bloon
                 i32 damage_dealt = min(bloon->hp, actual_proj_damage);
-                bloon->hp = max(0, bloon->hp - actual_proj_damage);
+                bloon->hp -= damage_dealt;
                 ntower::Tower* t = towers->find(proj.parent_tower);
                 if (t != nullptr) { t->pop_count += damage_dealt; } // attribute the true damage dealt
             }
@@ -157,7 +160,7 @@ void updateTick() {
             bloon = children[0];
         } else {
             // the bloon has been killed; remove it and add its children
-            bloons->del(bloon.id);
+            bloons->del(bloon.id); // TODO unsafe to delete from or add to a vec that has a live iterator
             // TODO the order of bloons is deterministic but kind of messed up and unintuitive; fix later
             for (u32 i = 0; i < children.size; i++) {
                 children[i].move_child(i);
