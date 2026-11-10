@@ -13,7 +13,7 @@ auto make_global_slice(Args&&... args) {
 /* attack functions */
 
 template <f32 range, u32 count, f32 spread>
-bool multishot_attack(ntower::Tower* tower, nproj::Buff const& buff_context, nproj::Proto* proj) {
+bool multishot_attack(ntower::Tower* tower, nproj::Effect const& buff_context, nproj::Proto* proj) {
     assert(tower->get_target_mode() == ntower::TargetMode::CloseBloon); // TODO
     nbloon::Bloon const* target = nullptr;
     f32 closest_dist = F32_INF;
@@ -41,7 +41,7 @@ bool multishot_attack(ntower::Tower* tower, nproj::Buff const& buff_context, npr
 };
 
 template <f32 range>
-bool simple_attack(ntower::Tower* tower, nproj::Buff const& buff_context, nproj::Proto* proj) {
+bool simple_attack(ntower::Tower* tower, nproj::Effect const& buff_context, nproj::Proto* proj) {
     return multishot_attack<range, 1, 0.0f>(tower, buff_context, proj);
 }
 
@@ -355,7 +355,7 @@ void init_tower_protos() {
     tower_protos.push(ntower::Proto{
         .attacks = make_global_slice<ntower::Attack>(
             ntower::Attack{
-                .attack = new std::function([proj_proto = proj2d2p](ntower::Tower* tower, nproj::Buff const& buff_context) {
+                .attack = new std::function([proj_proto = proj2d2p](ntower::Tower* tower, nproj::Effect const& buff_context) {
                     return simple_attack<6.0f>(tower, buff_context, proj_proto);
                 }),
                 .cooldown_ticks = 100
@@ -368,7 +368,7 @@ void init_tower_protos() {
     tower_protos.push(ntower::Proto{
         .attacks = make_global_slice<ntower::Attack>(
             ntower::Attack{
-                .attack = new std::function([proj_proto = proj1d3p](ntower::Tower* tower, nproj::Buff const& buff_context) {
+                .attack = new std::function([proj_proto = proj1d3p](ntower::Tower* tower, nproj::Effect const& buff_context) {
                     return simple_attack<10.0f>(tower, buff_context, proj_proto);
                 }),
                 .cooldown_ticks = 25
@@ -387,7 +387,7 @@ void init_tower_protos() {
         //        .cooldown_ticks = 100
         //    },
             ntower::Attack{
-                .attack = new std::function([proj_proto = proj3d1p](ntower::Tower* tower, nproj::Buff const& buff_context) {
+                .attack = new std::function([proj_proto = proj3d1p](ntower::Tower* tower, nproj::Effect const& buff_context) {
                     return multishot_attack<4.0f, 3, glm::radians(90.0f)>(tower, buff_context, proj_proto);
                 }),
                 .cooldown_ticks = 200
@@ -401,7 +401,7 @@ void init_tower_protos() {
     tower_protos.push(ntower::Proto{
         .attacks = make_global_slice<ntower::Attack>(
             ntower::Attack{
-                .attack = new std::function([proj_proto = projop1](ntower::Tower* tower, nproj::Buff const& buff_context) {
+                .attack = new std::function([proj_proto = projop1](ntower::Tower* tower, nproj::Effect const& buff_context) {
                     return multishot_attack<10.0f, 50, glm::radians(90.0f)>(tower, buff_context, proj_proto);
                 }),
                 .cooldown_ticks = 5
@@ -414,7 +414,7 @@ void init_tower_protos() {
     tower_protos.push(ntower::Proto{
         .attacks = make_global_slice<ntower::Attack>(
             ntower::Attack{
-                .attack = new std::function([proj_proto = projop2dmg](ntower::Tower* tower, nproj::Buff const& buff_context) {
+                .attack = new std::function([proj_proto = projop2dmg](ntower::Tower* tower, nproj::Effect const& buff_context) {
                     return simple_attack<10.0f>(tower, buff_context, proj_proto);
                 }),
                 .cooldown_ticks = 100
@@ -542,7 +542,7 @@ void initDartMonkey() {
     // towers
     Slice<ntower::TargetMode> base_target_modes = Vec<ntower::TargetMode>::with(&global_arena, ntower::TargetMode::FirstBloon, ntower::TargetMode::LastBloon, ntower::TargetMode::CloseBloon, ntower::TargetMode::StrongBloon).full_slice();
     // dart 000
-    Slice<ntower::Attack> dart000attacks = Vec<ntower::Attack>::with(&global_arena, ntower::Attack{ .attack = global_arena.push(std::function([proj_proto = dart000proj](ntower::Tower* tower, nproj::Buff const& buff_context) { return simple_attack<range_btd_to_world(32.0f)>(tower, buff_context, proj_proto); })), .cooldown_ticks = data::secondsToUpdates(0.95)}).full_slice();
+    Slice<ntower::Attack> dart000attacks = Vec<ntower::Attack>::with(&global_arena, ntower::Attack{ .attack = global_arena.push(std::function([proj_proto = dart000proj](ntower::Tower* tower, nproj::Effect const& buff_context) { return simple_attack<range_btd_to_world(32.0f)>(tower, buff_context, proj_proto); })), .cooldown_ticks = data::secondsToUpdates(0.95)}).full_slice();
     tower_protos.push(ntower::Proto{ .category = ntower::Category::Primary, .type = TTYPE_DART_MONKEY, .attacks = dart000attacks, .target_modes = base_target_modes });
     // dart 100
     // dart 200

@@ -228,14 +228,8 @@ void handleMouseInput(Cam const& c) {
                 }
             }
         } else {
-            //TID closestMonkey = findClosestMonkey(pos);
-            //if (
-            //    closestMonkey == TID{}
-            //    || distToMonkey(closestMonkey, pos) > 2.0f // TODO this is just temporary hardcoded thing
-            //) {
             towers->add(ntower::Tower::spawn(&tower_protos[ui::placementMonkeySelectedIndex], { pos.x, pos.y }, c.yaw + glm::radians(180.0f)));
             ui::placementMonkeySelectedIndex = U32_MAX;
-            //}
         }
     }
 }
@@ -289,11 +283,7 @@ void frameTick(Cam const& c) {
     }
     // preview tower
     glm::vec2 mouseWorldPos = raycast(input::mousePos.x, input::mousePos.y, c, 0.0f);
-    //TID closestMonkey = findClosestMonkey(mouseWorldPos);
-    if (
-        ui::placementMonkeySelectedIndex != U32_MAX && !ui::captureMouse
-        //&& (closestMonkey == TID{} || distToMonkey(closestMonkey, mouseWorldPos) > 2.0f)
-    ) {
+    if (ui::placementMonkeySelectedIndex != U32_MAX && !ui::captureMouse) {
         meshList.back().b += 1;
         visual::Animated sprite = tower_protos[ui::placementMonkeySelectedIndex].sprite;
         sprite.state = visual::AnimationState::Idle;
@@ -344,9 +334,7 @@ int main() {
         if (!ui::captureMouse) { handleMouseInput(c); }
         if (!ui::captureKeyboard) { handleKeyboardInput(c); }
         frameTick(c);
-        //if (!gamePaused && data::timeSinceLastUpdate() >= (1.0 / data::TARGET_UPS)) {
-        //while (!gamePaused && data::needDoUpdate()) { // would work perfectly, but alas, makes pausing impossible without jump-aheads on unpause; TODO make a better system later; also prone to death spirals
-        for (u32 repeats = 0; !gamePaused && data::needDoUpdate() && repeats < 2; repeats += 1) {
+        if (!gamePaused && data::timeSinceLastUpdate() >= (1.0 / data::TARGET_UPS)) {
             updateTick();
             data::updateTick();
         }

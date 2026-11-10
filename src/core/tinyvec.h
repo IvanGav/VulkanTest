@@ -23,11 +23,10 @@ struct TinyVec {
         return v;
     }
 
-    template <u32 C>
-    static TinyVec clone_slice(mem::Arena* arena, Slice<T>& to_clone) {
-        TinyVec<T,C> v { arena };
+    static TinyVec clone_slice(mem::Arena* arena, Slice<T> to_clone) {
+        TinyVec<T,N> v { .arena = arena };
         v.reserve(to_clone.size);
-        for(T& e : to_clone) {
+        for(T const& e : to_clone) {
             v.push(e);
         }
         return v;
@@ -40,14 +39,14 @@ struct TinyVec {
         if(this->capacity <= N) {
             if(capacity <= N) {
             } else {
-                T* data = arena->alloc<T>(capacity);
-                mem::copy(tiny_data, data, size);
-                this->data = data;
+                T* new_data = arena->alloc<T>(capacity);
+                mem::copy(tiny_data, new_data, size);
+                this->data = new_data;
             }
         } else {
             if(capacity <= N) {
-                T* data = this->data;
-                mem::copy(data, tiny_data, min(size, N));
+                T* old_data = this->data;
+                mem::copy(old_data, tiny_data, min(size, N));
             } else {
                 data = arena->realloc<T>(data, this->capacity, capacity);
             }
@@ -55,44 +54,37 @@ struct TinyVec {
         this->capacity = capacity;
     }
 
-    // void resize(u32 size) {
-    //     if(size > capacity) this->reserve(size);
-    //     if(size > this->size)
-    //         mem::zero<T>(this->data + this->size, size - this->size);
-    //     this->size = size;
-    // }
+    void resize(u32 size) { todo; }
 
     void reserve() {
         if(capacity < N) {
             capacity = N;
         } else if(size == capacity) {
-            if(capacity == 0) this->reserve(N);
-            else this->reserve(capacity*2);
+            reserve(capacity*2);
         }
     }
     
-    bool is_empty() {
-        return size == 0;
-    }
+    bool is_empty() const { return size == 0; }
 
-    void push(T e) {
+    void push(T const& e) {
         this->reserve();
-        if(capacity <= N) tiny_data[size] = e;
+        if (capacity <= N) tiny_data[size] = e;
         else data[size] = e;
         size++;
     }
 
+    void push(T&& e) {
+        this->reserve();
+        if (capacity <= N) tiny_data[size] = std::move(e);
+        else data[size] = std::move(e);
+        size++;
+    }
+
     // insert `e` at `index`
-    // void insert(u32 index, T const& e) {
-    //     this->reserve();
-    //     for(u32 i = size; i > index; i--) {
-    //         data[i] = data[i-1];
-    //     }
-    //     data[index] = e;
-    //     size++;
-    // }
+    void insert(u32 index, T const& e) { todo; }
 
     void swap(u32 i1, u32 i2) {
+        assert(i1 < size); assert(i2 < size);
         if(capacity <= N) {
             mem::swap<T>(tiny_data[i1], tiny_data[i2]);
         } else {
@@ -110,21 +102,7 @@ struct TinyVec {
         }
     }
 
-    void push_slice(Slice<T> s) {
-        if(next_power_of_two(this->size + s.size) < this->capacity)
-            this->reserve(next_power_of_two(this->size + s.size));
-        
-        for(u32 i = 0; i < s.size; i++) {
-            this->push(s[i]);
-        }
-    }
-
-    // set size to 0 and make sure that new elements get put into new memory
-    void invalidate() {
-        size = 0;
-        capacity = 0;
-        data = nullptr;
-    }
+    void push_slice(Slice<T> s) { todo; }
 
     /* Access Member Functions */
 
@@ -198,6 +176,14 @@ struct TinyVec {
         }
     }
 
+    // set size to 0 and make sure that new elements get put into new memory
+    void invalidate() {
+        size = 0;
+        capacity = 0;
+        data = nullptr;
+    }
+
+    // Keep the reserved memory, but discard existing elements
     void clear() {
         size = 0;
     }

@@ -15,6 +15,7 @@
 #include <type_traits>
 #include <vector>
 #include <array>
+#include <numeric>
 
 using std::move;
 

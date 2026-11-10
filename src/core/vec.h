@@ -30,6 +30,7 @@ struct Vec {
         Vec<T> v { .arena = arena };
         v.resize(to_clone.size);
         mem::copy<T>(to_clone.data, v.data, to_clone.size);
+        return v;
     }
 
     void reserve(u32 capacity) {
@@ -53,11 +54,17 @@ struct Vec {
         }
     }
     
-    bool is_empty() {
+    bool is_empty() const {
         return size == 0;
     }
 
-    void push(T e) {
+    void push(T const& e) {
+        this->reserve();
+        data[size] = e;
+        size++;
+    }
+
+    void push(T&& e) {
         this->reserve();
         data[size] = std::move(e);
         size++;
@@ -65,15 +72,18 @@ struct Vec {
 
     // insert `e` at `index`
     void insert(u32 index, T const& e) {
+        assert(index <= size);
+        T ec = e; // if `vec.insert(0, vec[1]);`, which is unfortunate but who cares
         this->reserve();
         for(u32 i = size; i > index; i--) {
             data[i] = data[i-1];
         }
-        data[index] = e;
+        data[index] = ec;
         size++;
     }
 
     void swap(u32 i1, u32 i2) {
+        assert(i1 < size); assert(i2 < size);
         mem::swap<T>(data[i1], data[i2]);
     }
 
@@ -84,19 +94,13 @@ struct Vec {
     }
 
     void push_slice(Slice<T> s) {
+        todo;
         if(next_power_of_two(this->size + s.size) < this->capacity)
             this->reserve(next_power_of_two(this->size + s.size));
         
         for(u32 i = 0; i < s.size; i++) {
             this->push(s[i]);
         }
-    }
-
-    // set size to 0 and make sure that new elements get put into new memory
-    void invalidate() {
-        size = 0;
-        capacity = 0;
-        data = nullptr;
     }
 
     /* Access Member Functions */
@@ -117,7 +121,6 @@ struct Vec {
     }
 
     T& operator[](u32 i) {
-        if (i >= size) { __debugbreak(); }
         assert(i < size);
         return data[i];
     }
@@ -140,6 +143,13 @@ struct Vec {
         for(u32 i = 0; i < midpoint; i++) {
             mem::swap(this->data[i], this->data[size-1-i]);
         }
+    }
+
+    // set size to 0 and make sure that new elements get put into new memory
+    void invalidate() {
+        size = 0;
+        capacity = 0;
+        data = nullptr;
     }
 
     // Keep the reserved memory, but discard existing elements
@@ -211,7 +221,8 @@ struct Vec {
     // `end` exclusive
     Slice<T> slice_range(u32 start, u32 end) {
         assert(end <= this->size);
-        return Slice<T> { .data = data + start, .size = size };
+        assert(start < end);
+        return Slice<T> { .data = data + start, .size = end - start };
     }
 
     /* Cloning */
@@ -232,12 +243,10 @@ struct Vec {
 
     /* STL Compatibility */
 
-    T* begin() {
-        return data;
-    }
-    T* end() {
-        return data + size;
-    }
+    T* begin() { return data; }
+    T* end() { return data + size; }
+    T const* begin() const { return data; }
+    T const* end() const { return data + size; }
 
     bool operator==(const Vec<T>& other) const {
         if(size != other.size) return false;

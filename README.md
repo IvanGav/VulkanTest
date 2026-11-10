@@ -176,7 +176,8 @@ More notes:
 - I don't know if I should hardcode the 5-2-0 of 5-5-5 upgrade system. Because it *could* be cool to have it non-fully-hardcoded. But at the same time it would be much simpler if it *was* hardcoded. The easiest solution that gets best of both worlds is just having a handler function for 5-2-0 of 5-5-5 and having an if statement checking what upgrade schema the given tower has.
 - As much as I'd like to, I should never rely on raw pointer comparison for equality. When saving/loading state, it'd be *easiest* if I didn't have to restore the exact memory state up to raw pointer equivalence. So the only case where it may be ok is comparing `Proto`s, since those may be looked up and reverse looked up by their key. And that's not even that useful anyway. After that, I need a function to load every kind of runtime object (non-`Proto`s, of course). And then a loop over all game structures to serialize in order, and then deserialize in order.
 - More knockback for certain types (ie jugg vs ceramic)
-- 
+- Defortify actually does a shit ton of damage, because it calculates how much extra damage to child bloons was stripped. So there will need to be a very special de-fortify logic just purely for pop attribution.
+
 ___
 
 Additional features:
@@ -185,6 +186,7 @@ Additional features:
 - Probably do want paragons, but different from BTD6 paragons because I don't love how those are implemented. Would be kind of cool to get a flavor of your paragon based on which of 3 paths you do upgrade.
 - Probably also want heroes, but not all same as BTD6 because some of them are lame (corvus) and some are OP (geraldo).
 - Probably want some special game modes. Like Rogue Legends but actually fun. What's gonna make it fun is a very game dev question that I don't know the answer to, but definitely more optimized and not paywall'd.
+- On-hit execution (under % hp)
 
 ___
 
@@ -196,6 +198,33 @@ Special events (when you can easily run arbitrary code with exclusive world acce
 - Bloon pop? (necromancer)
 - Round start
 - Round end
+
+___
+
+Bloon Effects:
+- Regrow
+- Slowdown/Speedup/Stun
+- Add type (extremely useful)
+- Remove type
+- More/less money on pop
+- Damage over time
+- Increased flat damage taken (glue, ice)
+
+Special Effects:
+- Trojan (aka instakill on layer pop)
+- On-death explosion (or otherwise on-death triggered) (unsure if should be an on-pop custom code, effect handler code, or otherwise; i'll have to handle extra cash on pop anyway, so maybe just on-pop custom check)
+- Benjamin's layer downgrade
+
+Each effect must be able to specify a very specific set of rules on when the effects are passed down to child bloons (which is not the case for projectiles - projectile specifies whether it can accept effects).
+- On bloon type (ie some effects may be passed down blimp->blimp, but not blimp->bloon)
+
+___
+
+Projectile Effects:
+- Allow pop bloon type (and by extension allow hit that bloon type)
+- More damage universally
+- More pierce
+- More damage for specific bloon type
 
 ___
 
@@ -263,9 +292,19 @@ Another thing: There's a bug in my pop attribution code. If I have fast firing t
 
 ___
 
+Yapping:
+
+Another thing I realized recently, is that very few attacks actually can overkill blimps. Like. Every single one of them is either an ability, an instakill, or super spike explosion (weirdly enough) - https://bloons.fandom.com/wiki/Penetrates_Blimp
+So it might be fine to disregard any same-tick attacks that are not blimp overkilling, if they happen to be after the blimp overkilling attack. Which also has the downside of potentially not overkilling blimps when there was ideally enough damage.
+At the expense of slightly cleaner code... well, maybe that's not so worth it after all.
+I mean ok. It's probably not huge performance gain anyway. And I don't even know if it'll lead to better code or worse. But I can have a bloon bool function "always_overkill", and any bloon will immideatly apply all damage anyway, instead of moving it on to a different buffer.
+Because 99.9% hits will be either on bloon or on blimp non-overkilling. Both don't require two passes. And in exceptional cases I will have several overkilling attacks applied afterwards.
+
+___
+
 TODO list without a particular order:
 - When selecting or putting down a tower, draw a radius gizmo
-- When selecting or putting down a tower, draw outline
+- ~~When selecting or putting down a tower, draw outline~~
 - Bloon effects
 - Bloon fortified type
 - Bloon regrow type
